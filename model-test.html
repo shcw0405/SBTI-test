@@ -1,0 +1,2050 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SBTI 模型自动测评 — 让 AI 大语言模型完成 SBTI 人格测试，生成可视化报告。纯前端，API Key 不离开浏览器。" />
+  <title>SBTI 模型自动测评 · 给 AI 做人格测试</title>
+  <style>
+    /* ══════════ 设计变量 ══════════ */
+    :root {
+      --bg: #f6faf6;
+      --panel: #ffffff;
+      --text: #1e2a22;
+      --muted: #6a786f;
+      --line: #dbe8dd;
+      --soft: #edf6ef;
+      --accent: #6c8d71;
+      --accent-strong: #4d6a53;
+      --shadow: 0 16px 40px rgba(47, 73, 55, 0.08);
+      --radius: 22px;
+      --err: #e74c3c;
+      --warn-bg: #fffbe6;
+      --warn-border: #f0e6b8;
+      --warn-text: #8a7a2a;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                   "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at top left, #f8fff8 0, #f6faf6 36%, #f2f7f3 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .shell {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px 16px 56px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    /* ══════════ 通用卡片 ══════════ */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .inner-card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      background: linear-gradient(180deg, #ffffff, #fbfdfb);
+    }
+
+    /* ══════════ 按钮 ══════════ */
+    button {
+      border: 0;
+      cursor: pointer;
+      transition: transform .16s ease, box-shadow .16s ease, opacity .16s ease;
+      font: inherit;
+    }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { cursor: not-allowed; opacity: 0.55; transform: none; }
+
+    .btn-primary {
+      background: var(--accent-strong);
+      color: #fff;
+      padding: 14px 20px;
+      border-radius: 14px;
+      box-shadow: 0 12px 30px rgba(77, 106, 83, 0.18);
+      font-weight: 700;
+    }
+    .btn-secondary {
+      background: #fff;
+      color: var(--accent-strong);
+      padding: 14px 20px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      font-weight: 700;
+    }
+    .btn-danger {
+      background: #e74c3c;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 14px;
+      font-weight: 700;
+    }
+    .btn-small {
+      padding: 8px 14px;
+      font-size: 13px;
+      border-radius: 10px;
+    }
+
+    /* ══════════ 徽章 / eyebrow ══════════ */
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--accent-strong);
+      border: 1px solid var(--line);
+      background: var(--soft);
+      border-radius: 999px;
+      padding: 8px 12px;
+      margin-bottom: 16px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--accent-strong);
+      font-weight: 700;
+    }
+
+    /* ══════════ 阶段容器 ══════════ */
+    .stage { display: none; }
+    .stage.active { display: block; }
+
+    /* ══════════ 阶段1: Hero ══════════ */
+    .hero {
+      padding: 28px;
+      margin-top: 20px;
+      overflow: hidden;
+      position: relative;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -60px; top: -60px;
+      width: 180px; height: 180px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, rgba(127,165,134,0.18), rgba(127,165,134,0.02));
+      pointer-events: none;
+    }
+    .hero-center {
+      min-height: 50vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 42px 20px;
+    }
+    .hero-center::after { display: none; }
+    .hero h1 {
+      font-size: clamp(28px, 5vw, 52px);
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+    }
+    .hero .sub {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.75;
+      max-width: 520px;
+    }
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+      justify-content: center;
+    }
+
+    /* ══════════ 阶段2: Config ══════════ */
+    .config-wrap {
+      margin-top: 22px;
+      padding: 28px;
+    }
+    .config-wrap h2 {
+      font-size: 22px;
+      margin-bottom: 6px;
+    }
+    .config-wrap .sub {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 22px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .form-group label .req {
+      color: var(--err);
+      margin-left: 2px;
+    }
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      font: inherit;
+      font-size: 14px;
+      background: #fff;
+      transition: border-color .16s ease;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .form-group textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+    .form-group .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .collapsible-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent-strong);
+      padding: 10px 0;
+      margin-top: 6px;
+    }
+    .collapsible-header .arrow {
+      transition: transform .2s ease;
+      font-size: 12px;
+    }
+    .collapsible-header.open .arrow {
+      transform: rotate(90deg);
+    }
+    .collapsible-body {
+      display: none;
+      padding-bottom: 8px;
+    }
+    .collapsible-body.open {
+      display: block;
+    }
+
+    .security-note {
+      margin-top: 18px;
+      padding: 14px;
+      border-radius: 14px;
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      font-size: 13px;
+      color: var(--warn-text);
+      line-height: 1.7;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+    .checkbox-row input[type="checkbox"] {
+      width: auto;
+      accent-color: var(--accent-strong);
+    }
+
+    .config-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    /* 连接测试结果 */
+    .conn-result {
+      margin-top: 12px;
+      padding: 16px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.7;
+      animation: fadeIn .4s ease both;
+    }
+    .conn-result.success {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+    }
+    .conn-result.fail {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+    }
+    .conn-result .conn-title {
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .conn-result .conn-detail {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 12px;
+      font-size: 12px;
+    }
+    .conn-result .conn-detail dt {
+      font-weight: 600;
+      opacity: 0.7;
+    }
+    .conn-result .conn-detail dd {
+      margin: 0;
+      word-break: break-all;
+    }
+    .conn-result pre {
+      margin: 8px 0 0;
+      padding: 8px;
+      border-radius: 8px;
+      background: rgba(0,0,0,0.05);
+      font-size: 11px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+
+    .error-msg {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+      font-size: 13px;
+      line-height: 1.6;
+      display: none;
+    }
+    .error-msg.visible { display: block; }
+
+    /* ══════════ 阶段3: Running ══════════ */
+    .running-wrap {
+      margin-top: 22px;
+      padding: 22px;
+    }
+
+    .sticky-bar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--panel);
+      padding: 14px 22px;
+      border-bottom: 1px solid var(--line);
+      margin: -22px -22px 18px;
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .sticky-bar-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .sticky-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex: 1;
+      min-width: 0;
+    }
+    .sticky-right {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .progress-bar {
+      flex: 1;
+      min-width: 120px;
+      height: 10px;
+      background: #edf3ee;
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-bar > .fill {
+      display: block;
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #97b59c, #5b7a62);
+      border-radius: inherit;
+      transition: width .3s ease;
+      position: relative;
+    }
+    .progress-bar > .fill::after {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(90deg,
+        transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%);
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    .progress-text {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .timer {
+      font-variant-numeric: tabular-nums;
+      font-size: 13px;
+      color: var(--accent-strong);
+      font-weight: 600;
+    }
+
+    /* 当前题目卡片 */
+    .current-question {
+      margin-bottom: 18px;
+    }
+    .current-question .q-title {
+      font-size: 16px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      margin-bottom: 12px;
+    }
+    .current-question .q-options {
+      display: grid;
+      gap: 8px;
+    }
+    .q-option-item {
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font-size: 14px;
+      display: flex;
+      gap: 8px;
+      transition: background .2s, border-color .2s;
+    }
+    .q-option-item .letter {
+      font-weight: 800;
+      color: var(--accent-strong);
+      min-width: 20px;
+    }
+    .q-option-item.selected {
+      background: var(--soft);
+      border-color: var(--accent);
+    }
+    .waiting-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .dot-pulse {
+      display: inline-flex;
+      gap: 4px;
+    }
+    .dot-pulse span {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: dotBounce .6s infinite alternate;
+    }
+    .dot-pulse span:nth-child(2) { animation-delay: .2s; }
+    .dot-pulse span:nth-child(3) { animation-delay: .4s; }
+    @keyframes dotBounce {
+      0%   { opacity: 0.3; transform: translateY(0); }
+      100% { opacity: 1;   transform: translateY(-4px); }
+    }
+
+    /* 已完成题目列表 */
+    .completed-list h3 {
+      font-size: 15px;
+      margin-bottom: 12px;
+      color: var(--muted);
+    }
+    .completed-items {
+      display: grid;
+      gap: 8px;
+    }
+    .completed-item {
+      display: grid;
+      grid-template-columns: 36px 32px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font-size: 13px;
+      animation: fadeIn .4s ease both;
+    }
+    .completed-item.error-item {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+    .completed-item .idx {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .completed-item .letter-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      background: var(--soft);
+      color: var(--accent-strong);
+      font-weight: 800;
+      font-size: 13px;
+    }
+    .completed-item .q-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .completed-item .meta {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    /* ══════════ 阶段4: Result ══════════ */
+    .result-wrap {
+      margin-top: 22px;
+      padding: 22px;
+    }
+    .result-layout {
+      display: grid;
+      gap: 18px;
+    }
+
+    /* 海报区 */
+    .result-top {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+    .poster-box {
+      display: grid;
+      grid-template-rows: 1fr auto;
+      min-height: 280px;
+      overflow: hidden;
+      position: relative;
+      background:
+        radial-gradient(circle at top right, rgba(127,165,134,0.16), rgba(127,165,134,0) 40%),
+        linear-gradient(180deg, #ffffff, #f7fbf8);
+    }
+    .poster-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 12px;
+    }
+
+    .type-box {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .type-kicker {
+      font-size: 12px;
+      color: var(--accent-strong);
+      margin-bottom: 8px;
+      letter-spacing: .05em;
+    }
+    .type-name {
+      font-size: clamp(30px, 5vw, 48px);
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+    }
+    .type-subname {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .match-badge {
+      margin-top: 18px;
+    }
+    .type-intro {
+      margin-top: 16px;
+      font-size: 15px;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* 简介区 */
+    .desc-box {
+      line-height: 1.85;
+      font-size: 15px;
+      color: #304034;
+    }
+
+    /* 维度区 */
+    .dim-section h3 {
+      font-size: 16px;
+      margin-bottom: 14px;
+    }
+    .dim-group {
+      margin-bottom: 16px;
+    }
+    .dim-group-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent-strong);
+      margin-bottom: 8px;
+      padding-left: 4px;
+    }
+    .dim-group-items {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .dim-card {
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+    .dim-card .dim-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .dim-card .dim-score {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--accent-strong);
+    }
+    .dim-card .dim-level {
+      font-size: 12px;
+      font-weight: 700;
+      margin-left: 4px;
+    }
+    .dim-card .dim-explain {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* Top5 匹配 */
+    .top5-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .top5-table th {
+      text-align: left;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .top5-table td {
+      padding: 10px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .top5-table tr:last-child td {
+      border-bottom: none;
+    }
+    .top5-table .rank-1 {
+      font-weight: 700;
+      color: var(--accent-strong);
+    }
+
+    /* 折叠面板 */
+    .collapse-panel {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .collapse-trigger {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 14px 18px;
+      background: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    .collapse-trigger:hover { transform: none; background: var(--soft); }
+    .collapse-trigger .arrow { transition: transform .2s ease; }
+    .collapse-trigger.open .arrow { transform: rotate(180deg); }
+    .collapse-content {
+      display: none;
+      padding: 0 18px 18px;
+      background: #fff;
+    }
+    .collapse-content.open {
+      display: block;
+    }
+
+    /* 答题汇总表 */
+    .answer-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .answer-table th {
+      text-align: left;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    .answer-table td {
+      padding: 8px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    .answer-table .q-text-cell {
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 调试面板 */
+    .debug-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+    .debug-item-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 10px 14px;
+      background: #fff;
+      font-size: 13px;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    .debug-item-header:hover { transform: none; background: #f9fcf9; }
+    .debug-item-body {
+      display: none;
+      padding: 12px 14px;
+      background: #f8faf8;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .debug-item-body.open { display: block; }
+    .debug-item-body pre {
+      margin: 8px 0;
+      padding: 10px;
+      background: #1e2a22;
+      color: #d4e8d6;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 11px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .debug-item-body .kv {
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 4px 12px;
+      margin-bottom: 8px;
+    }
+    .debug-item-body .kv dt {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .debug-item-body .kv dd {
+      margin: 0;
+      word-break: break-all;
+    }
+
+    /* 结果操作按钮 */
+    .result-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    /* ══════════ 动画 ══════════ */
+    .fade-in {
+      animation: fadeIn .6s ease both;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .stagger > * {
+      opacity: 0;
+      animation: fadeIn .5s ease both;
+    }
+    .stagger > *:nth-child(1) { animation-delay: .05s; }
+    .stagger > *:nth-child(2) { animation-delay: .12s; }
+    .stagger > *:nth-child(3) { animation-delay: .19s; }
+    .stagger > *:nth-child(4) { animation-delay: .26s; }
+    .stagger > *:nth-child(5) { animation-delay: .33s; }
+    .stagger > *:nth-child(6) { animation-delay: .40s; }
+    .stagger > *:nth-child(7) { animation-delay: .47s; }
+    .stagger > *:nth-child(8) { animation-delay: .54s; }
+
+    .reveal-anim {
+      opacity: 0;
+      transform: scale(0.9);
+      animation: revealPop .8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    @keyframes revealPop {
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    /* ══════════ 响应式 ══════════ */
+    @media (max-width: 860px) {
+      .result-top {
+        grid-template-columns: 1fr;
+      }
+      .poster-box {
+        min-height: 200px;
+      }
+      .dim-group-items {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .shell { padding: 12px 10px 40px; }
+      .hero { padding: 20px; }
+      .config-wrap, .running-wrap, .result-wrap { padding: 16px; }
+      .sticky-bar { margin: -16px -16px 14px; padding: 12px 16px; }
+      .dim-group-items {
+        grid-template-columns: 1fr;
+      }
+      .completed-item {
+        grid-template-columns: 30px 28px 1fr;
+      }
+      .completed-item .meta { display: none; }
+      .hero h1 { font-size: 26px; }
+    }
+
+    /* ══════════ 打印 / PDF ══════════ */
+    @media print {
+      body { background: #fff !important; }
+      .shell { padding: 0; max-width: none; }
+      .card { box-shadow: none; border: 1px solid #ddd; }
+
+      /* 隐藏交互元素 */
+      .sticky-bar, .config-actions, .result-actions,
+      .btn-primary, .btn-secondary, .btn-danger,
+      #stage-hero, #stage-config, #stage-running,
+      .security-note, .checkbox-row { display: none !important; }
+
+      /* 确保结果页可见 */
+      #stage-result { display: block !important; }
+
+      /* 展开所有折叠 */
+      .collapse-content, .debug-item-body,
+      .collapsible-body { display: block !important; }
+      .collapse-trigger .arrow { display: none; }
+
+      /* 白底无阴影 */
+      .inner-card, .dim-card, .poster-box, .type-box,
+      .collapse-panel, .debug-item {
+        box-shadow: none;
+        break-inside: avoid;
+      }
+      .poster-box img { break-inside: avoid; }
+
+      .result-wrap { padding: 0; }
+      .result-layout { gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+
+    <!-- ════════ 阶段1: Hero ════════ -->
+    <div id="stage-hero" class="stage active">
+      <div class="card hero hero-center">
+        <div class="eyebrow">🤖 SBTI × LLM</div>
+        <h1>给 AI 做人格测试</h1>
+        <p class="sub">
+          输入 API 凭据，让大语言模型自动完成 SBTI 人格测试的 30 道题目，
+          生成可视化人格报告。<br>纯前端运行，Key 不离开浏览器。
+        </p>
+        <div class="hero-actions">
+          <button class="btn-primary" onclick="showStage('config')">开始配置</button>
+          <button class="btn-secondary" onclick="location.href='index.html'">真人测试版</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ 阶段2: Config ════════ -->
+    <div id="stage-config" class="stage">
+      <div class="card config-wrap">
+        <h2>测试配置</h2>
+        <p class="sub">填写 OpenAI 兼容 API 的连接信息</p>
+
+        <div class="form-group">
+          <label>API Base URL <span class="req">*</span></label>
+          <input type="text" id="cfg-baseUrl" placeholder="https://api.openai.com/v1" />
+          <div class="hint">OpenAI 兼容接口地址，不含 /chat/completions</div>
+        </div>
+
+        <div class="form-group">
+          <label>API Key <span class="req">*</span></label>
+          <input type="password" id="cfg-apiKey" placeholder="sk-..." />
+        </div>
+
+        <div class="form-group">
+          <label>Model ID <span class="req">*</span></label>
+          <input type="text" id="cfg-modelId" placeholder="gpt-4o-mini" />
+        </div>
+
+        <!-- 可选配置（折叠） -->
+        <div class="collapsible-header" onclick="toggleCollapsible(this)">
+          <span class="arrow">▶</span> 高级选项
+        </div>
+        <div class="collapsible-body">
+          <div class="form-group">
+            <label>System Prompt（可选）</label>
+            <textarea id="cfg-systemPrompt" placeholder="例如: 你是一个坦诚的AI，按直觉回答问题"></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Temperature</label>
+              <input type="number" id="cfg-temperature" value="0.3" min="0" max="2" step="0.1" />
+              <div class="hint">某些模型（如 claude-opus）不支持此参数</div>
+            </div>
+            <div class="form-group">
+              <label>并发数</label>
+              <input type="number" id="cfg-concurrency" value="3" min="1" max="10" step="1" />
+              <div class="hint">同时发送的题目数量，加速测试（1=顺序执行）</div>
+            </div>
+            <div class="form-group">
+              <label>单题超时（秒）</label>
+              <input type="number" id="cfg-timeout" value="60" min="10" max="300" step="10" />
+              <div class="hint">单次请求超过该时间自动放弃重试</div>
+            </div>
+            <div class="form-group">
+              <label>最大重试次数</label>
+              <input type="number" id="cfg-maxRetries" value="10" min="1" max="50" step="1" />
+              <div class="hint">单题超过该次数仍失败则跳过</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>随机种子（可选）</label>
+            <input type="text" id="cfg-seed" placeholder="留空则随机" />
+            <div class="hint">仅影响题目顺序，不影响模型输出</div>
+          </div>
+        </div>
+
+        <div class="security-note">
+          🔒 <strong>安全提示</strong>：所有 API 调用均在浏览器端完成，Key 不会发送到任何第三方服务器。
+          但请注意，Key 会暴露在浏览器的开发者工具、网络请求中。建议使用临时 Key 或低额度 Key 进行测试。
+        </div>
+
+        <div class="checkbox-row">
+          <input type="checkbox" id="cfg-corsProxy" onchange="toggleProxyUrl()" />
+          <label for="cfg-corsProxy">启用 CORS 代理（API 不支持浏览器跨域时必须开启）</label>
+        </div>
+        <div id="proxy-url-row" class="form-group" style="display:none;margin-top:8px">
+          <label>代理地址</label>
+          <input type="text" id="cfg-proxyUrl" value="http://localhost:9876" />
+          <div class="hint">运行 <code>node cors-proxy.js</code> 启动本地代理，或填写其他 CORS 代理地址</div>
+        </div>
+
+        <div class="checkbox-row">
+          <input type="checkbox" id="cfg-saveLocal" />
+          <label for="cfg-saveLocal">保存配置到 localStorage（下次自动填充）</label>
+        </div>
+
+        <div id="config-error" class="error-msg"></div>
+
+        <!-- 连接测试结果 -->
+        <div id="conn-test-result" style="display:none"></div>
+
+        <div class="config-actions">
+          <button class="btn-secondary" id="btn-conn-test" onclick="testConnection()">🔌 测试连接</button>
+          <button class="btn-primary" id="btn-start-test" onclick="startTest()">开始测试</button>
+          <button class="btn-secondary" onclick="showStage('hero')">返回</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ 阶段3: Running ════════ -->
+    <div id="stage-running" class="stage">
+      <div class="card running-wrap">
+        <div class="sticky-bar">
+          <div class="sticky-bar-inner">
+            <div class="sticky-left">
+              <span class="progress-text" id="run-progress-text">0/31</span>
+              <div class="progress-bar">
+                <span class="fill" id="run-progress-fill"></span>
+              </div>
+              <span class="timer" id="run-timer">00:00</span>
+            </div>
+            <div class="sticky-right">
+              <button class="btn-secondary btn-small" id="btn-pause" onclick="togglePause()">暂停</button>
+              <button class="btn-danger btn-small" id="btn-abort" onclick="abortTest()">终止</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 当前题目 -->
+        <div id="run-current" class="current-question inner-card" style="display:none">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+            <span class="badge" id="run-q-badge"></span>
+            <span class="badge" id="run-q-dim"></span>
+          </div>
+          <div class="q-title" id="run-q-title"></div>
+          <div class="q-options" id="run-q-options"></div>
+          <div class="waiting-indicator" id="run-waiting">
+            <div class="dot-pulse"><span></span><span></span><span></span></div>
+            <span>等待模型回复...</span>
+          </div>
+        </div>
+
+        <!-- 已完成列表 -->
+        <div class="completed-list">
+          <h3 id="completed-heading" style="display:none">已完成</h3>
+          <div class="completed-items" id="run-completed"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ 阶段4: Result ════════ -->
+    <div id="stage-result" class="stage">
+      <div class="card result-wrap">
+        <div class="result-layout" id="result-container">
+          <!-- JS 动态填充 -->
+        </div>
+        <div class="result-actions" style="margin-top:22px">
+          <button class="btn-primary" onclick="window.print()">📄 导出 PDF</button>
+          <button class="btn-secondary" onclick="resetToConfig()">重新测试</button>
+          <button class="btn-secondary" onclick="showStage('hero')">返回首页</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.shell -->
+
+  <script id="sbti-data" type="application/json">{"dimensionMeta":{"S1":{"name":"S1 自尊自信","model":"自我模型"},"S2":{"name":"S2 自我清晰度","model":"自我模型"},"S3":{"name":"S3 核心价值","model":"自我模型"},"E1":{"name":"E1 依恋安全感","model":"情感模型"},"E2":{"name":"E2 情感投入度","model":"情感模型"},"E3":{"name":"E3 边界与依赖","model":"情感模型"},"A1":{"name":"A1 世界观倾向","model":"态度模型"},"A2":{"name":"A2 规则与灵活度","model":"态度模型"},"A3":{"name":"A3 人生意义感","model":"态度模型"},"Ac1":{"name":"Ac1 动机导向","model":"行动驱力模型"},"Ac2":{"name":"Ac2 决策风格","model":"行动驱力模型"},"Ac3":{"name":"Ac3 执行模式","model":"行动驱力模型"},"So1":{"name":"So1 社交主动性","model":"社交模型"},"So2":{"name":"So2 人际边界感","model":"社交模型"},"So3":{"name":"So3 表达与真实度","model":"社交模型"}},"questions":[{"id":"q1","dim":"S1","text":"我不仅是屌丝，我还是joker,我还是咸鱼，这辈子没谈过一场恋爱，胆怯又自卑，我的青春就是一场又一场的意淫，每一天幻想着我也能有一个女孩子和我一起压马路，一起逛街，一起玩，现实却是爆了父母金币，读了个烂学校，混日子之后找班上，没有理想，没有目标，没有能力的三无人员，每次看到你能在网上开屌丝的玩笑，我都想哭，我就是地底下的老鼠，透过下水井的缝隙，窥探地上的各种美好，每一次看到这种都是对我心灵的一次伤害，对我生存空间的一次压缩，求求哥们给我们这种小丑一点活路吧，我真的不想在白天把枕巾哭湿一大片","options":[{"label":"我哭了。。","value":1},{"label":"这是什么。。","value":2},{"label":"这不是我！","value":3}]},{"id":"q2","dim":"S1","text":"我不够好，周围的人都比我优秀","options":[{"label":"确实","value":1},{"label":"有时","value":2},{"label":"不是","value":3}]},{"id":"q3","dim":"S2","text":"我很清楚真正的自己是什么样的","options":[{"label":"不认同","value":1},{"label":"中立","value":2},{"label":"认同","value":3}]},{"id":"q4","dim":"S2","text":"我内心有真正追求的东西","options":[{"label":"不认同","value":1},{"label":"中立","value":2},{"label":"认同","value":3}]},{"id":"q5","dim":"S3","text":"我一定要不断往上爬、变得更厉害","options":[{"label":"不认同","value":1},{"label":"中立","value":2},{"label":"认同","value":3}]},{"id":"q6","dim":"S3","text":"外人的评价对我来说无所吊谓。","options":[{"label":"不认同","value":1},{"label":"中立","value":2},{"label":"认同","value":3}]},{"id":"q7","dim":"E1","text":"对象超过5小时没回消息，说自己窜稀了，你会怎么想？","options":[{"label":"拉稀不可能5小时，也许ta隐瞒了我。","value":1},{"label":"在信任和怀疑之间摇摆。","value":2},{"label":"也许今天ta真的不太舒服。","value":3}]},{"id":"q8","dim":"E1","text":"我在感情里经常担心被对方抛弃","options":[{"label":"是的","value":1},{"label":"偶尔","value":2},{"label":"不是","value":3}]},{"id":"q9","dim":"E2","text":"我对天发誓，我对待每一份感情都是认真的！","options":[{"label":"并没有","value":1},{"label":"也许？","value":2},{"label":"是的！（问心无愧骄傲脸）","value":3}]},{"id":"q10","dim":"E2","text":"你的恋爱对象是一个尊老爱幼，温柔敦厚，洁身自好，光明磊落，大义凛然，能言善辩，口才流利，观察入微，见多识广，博学多才，诲人不倦，和蔼可亲，平易近人，心地善良，慈眉善目，积极进取，意气风发，玉树临风，国色天香，倾国倾城，花容月貌的人，此时你会？","options":[{"label":"就算ta再优秀我也不会陷入太深。","value":1},{"label":"会介于A和C之间。","value":2},{"label":"会非常珍惜ta，也许会变成恋爱脑。","value":3}]},{"id":"q11","dim":"E3","text":"恋爱后，对象非常黏人，你作何感想？","options":[{"label":"那很爽了","value":1},{"label":"都行无所谓","value":2},{"label":"我更喜欢保留独立空间","value":3}]},{"id":"q12","dim":"E3","text":"我在任何关系里都很重视个人空间","options":[{"label":"我更喜欢依赖与被依赖","value":1},{"label":"看情况","value":2},{"label":"是的！（斩钉截铁地说道）","value":3}]},{"id":"q13","dim":"A1","text":"大多数人是善良的","options":[{"label":"其实邪恶的人心比世界上的痔疮更多。","value":1},{"label":"也许吧。","value":2},{"label":"是的，我愿相信好人更多。","value":3}]},{"id":"q14","dim":"A1","text":"你走在街上，一位萌萌的小女孩蹦蹦跳跳地朝你走来（正脸、侧脸看都萌，用vivo、苹果、华为、OPPO手机看都萌，实在是非常萌的那种），她递给你一根棒棒糖，此时你作何感想？","options":[{"label":"呜呜她真好真可爱！居然给我棒棒糖！","value":3},{"label":"一脸懵逼，作挠头状","value":2},{"label":"这也许是一种新型诈骗？还是走开为好。","value":1}]},{"id":"q15","dim":"A2","text":"快考试了，学校规定必须上晚自习，请假会扣分，但今晚你约了女/男神一起玩《绝地求生：刺激战场》（一款刺激的游戏），你怎么办？","options":[{"label":"翘了！反正就一次！","value":1},{"label":"干脆请个假吧。","value":2},{"label":"都快考试了还去啥。","value":3}]},{"id":"q16","dim":"A2","text":"我喜欢打破常规，不喜欢被束缚","options":[{"label":"认同","value":1},{"label":"保持中立","value":2},{"label":"不认同","value":3}]},{"id":"q17","dim":"A3","text":"我做事通常有目标。","options":[{"label":"不认同","value":1},{"label":"中立","value":2},{"label":"认同","value":3}]},{"id":"q18","dim":"A3","text":"突然某一天，我意识到人生哪有什么他妈的狗屁意义，人不过是和动物一样被各种欲望支配着，纯纯是被激素控制的东西，饿了就吃，困了就睡，一发情就想交配，我们简直和猪狗一样没什么区别。","options":[{"label":"是这样的。","value":1},{"label":"也许是，也许不是。","value":2},{"label":"这简直是胡扯","value":3}]},{"id":"q19","dim":"Ac1","text":"我做事主要为了取得成果和进步，而不是避免麻烦和风险。","options":[{"label":"不认同","value":1},{"label":"中立","value":2},{"label":"认同","value":3}]},{"id":"q20","dim":"Ac1","text":"你因便秘坐在马桶上（已长达30分钟），拉不出很难受。此时你更像","options":[{"label":"再坐三十分钟看看，说不定就有了。","value":1},{"label":"用力拍打自己的屁股并说：“死屁股，快拉啊！”","value":2},{"label":"使用开塞露，快点拉出来才好。","value":3}]},{"id":"q21","dim":"Ac2","text":"我做决定比较果断，不喜欢犹豫","options":[{"label":"不认同","value":1},{"label":"中立","value":2},{"label":"认同","value":3}]},{"id":"q22","dim":"Ac2","text":"此题没有题目，请盲选","options":[{"label":"反复思考后感觉应该选A？","value":1},{"label":"啊，要不选B？","value":2},{"label":"不会就选C？","value":3}]},{"id":"q23","dim":"Ac3","text":"别人说你“执行力强”，你内心更接近哪句？","options":[{"label":"我被逼到最后确实执行力超强。。。","value":1},{"label":"啊，有时候吧。","value":2},{"label":"是的，事情本来就该被推进","value":3}]},{"id":"q24","dim":"Ac3","text":"我做事常常有计划，____","options":[{"label":"然而计划不如变化快。","value":1},{"label":"有时能完成，有时不能。","value":2},{"label":"我讨厌被打破计划。","value":3}]},{"id":"q25","dim":"So1","text":"你因玩《第五人格》（一款刺激的游戏）而结识许多网友，并被邀请线下见面，你的想法是？","options":[{"label":"网上口嗨下就算了，真见面还是有点忐忑。","value":1},{"label":"见网友也挺好，反正谁来聊我就聊两句。","value":2},{"label":"我会打扮一番并热情聊天，万一呢，我是说万一呢？","value":3}]},{"id":"q26","dim":"So1","text":"朋友带了ta的朋友一起来玩，你最可能的状态是","options":[{"label":"对“朋友的朋友”天然有点距离感，怕影响二人关系","value":1},{"label":"看对方，能玩就玩。","value":2},{"label":"朋友的朋友应该也算我的朋友！要热情聊天","value":3}]},{"id":"q27","dim":"So2","text":"我和人相处主打一个电子围栏，靠太近会自动报警。","options":[{"label":"认同","value":3},{"label":"中立","value":2},{"label":"不认同","value":1}]},{"id":"q28","dim":"So2","text":"我渴望和我信任的人关系密切，熟得像失散多年的亲戚。","options":[{"label":"认同","value":1},{"label":"中立","value":2},{"label":"不认同","value":3}]},{"id":"q29","dim":"So3","text":"有时候你明明对一件事有不同的、负面的看法，但最后没说出来。多数情况下原因是：","options":[{"label":"这种情况较少。","value":1},{"label":"可能碍于情面或者关系。","value":2},{"label":"不想让别人知道自己是个阴暗的人。","value":3}]},{"id":"q30","dim":"So3","text":"我在不同人面前会表现出不一样的自己","options":[{"label":"不认同","value":1},{"label":"中立","value":2},{"label":"认同","value":3}]}],"specialQuestions":[{"id":"drink_gate_q1","special":true,"kind":"drink_gate","text":"您平时有什么爱好？","options":[{"label":"吃喝拉撒","value":1},{"label":"艺术爱好","value":2},{"label":"饮酒","value":3},{"label":"健身","value":4}]},{"id":"drink_gate_q2","special":true,"kind":"drink_trigger","text":"您对饮酒的态度是？","options":[{"label":"小酌怡情，喝不了太多。","value":1},{"label":"我习惯将白酒灌在保温杯，当白开水喝，酒精令我信服。","value":2}]}],"TYPE_LIBRARY":{"CTRL":{"code":"CTRL","cn":"拿捏者","intro":"怎么样，被我拿捏了吧？","desc":"恭喜您，您测出了全中国最为罕见的人格，您是宇宙熵增定律的天然反抗者！全世界所谓成功人士里，99.99%都是您的拙劣模仿者。CTRL人格，是行走的人形自走任务管理器，普通人眼中的“规则”，在您这里只是出厂的基础参数设置；凡人所谓的“计划”，对您而言不过是心血来潮的随手涂鸦。拥有一个CTRL朋友意味着什么？意味着你的人生导航系统会变得更加精准、高效。因为CTRL最会拿捏了。CTRL会在你人生列车即将脱轨的前一秒，用一个“Ctrl+S”帮你硬核存档，再用一套无法拒绝的逻辑把你强行拽回正轨。他们是你混乱生活最后的备份盘，是宇宙崩塌前唯一还亮着的那个重启键。"},"ATM-er":{"code":"ATM-er","cn":"送钱者","intro":"你以为我很有钱吗？","desc":"恭喜您，您竟然测出了这个世界上最稀有的人格。您或将成为金融界的未解之谜——是的，ATM-er不一定真的“送钱”，但可能永远在“支付”。支付时间、支付精力、支付耐心、支付一个本该安宁的夜晚。因此像一部老旧但坚固的ATM机，插进去的是别人的焦虑和麻烦，吐出来的是“没事，有我”的安心保证。您的人生就是一场盛大的、无人喝彩的单人付账秀。您竟用磐石般的可靠，承受了瀑布般的索取，偶尔夜深人静才会对着账单——可能是精神上的——发出一声叹息：我这该死的、无处安放的责任心啊。"},"Dior-s":{"code":"Dior-s","cn":"屌丝","intro":"等着我屌丝逆袭。","desc":"恭喜！您并非屌丝，您是犬儒主义先贤第欧根尼失散多年的精神传人，因为屌丝的全称是 Diogenes' Original Realist - sage。Dior-s人格，是对当代消费主义陷阱和成功学PUA最彻底的蔑视。他们不是“不求上进”，而是早已看穿一切“上进”的尽头不过是更高级的牢房。屌丝有着大智慧。当别人在追逐风口，被时代的巨浪拍得七荤八素时，Dior-s早已在自己的精神木桶里晒着太阳，达到了“人桶合一”的至高境界。他们信奉的不是空话，是经过亿万次实践检验的物理法则与生物本能：一、躺着比站着舒服；二、饭点到了就得干饭。"},"BOSS":{"code":"BOSS","cn":"领导者","intro":"方向盘给我，我来开。","desc":"BOSS是一个手里永远拿着方向盘的人。哪怕油箱已经亮了红灯，哪怕导航在胡说八道，你都会面无表情地说一句：我来开。然后真的把车开到了目的地。该人格拥有独立的物理法则——永恒向上定律。BOSS人格看世界，就像玩通关了的玩家在看新手教程。效率是他们的信仰，秩序是他们的呼吸。他们不是“自带领袖气场”，他们本身就是人形的气场发生器，方圆五米内，空气都会自动变得严肃而高效。他们眼中的“自我突破”，约等于普通人眼中的“自虐”。今天掌握一门新语言，明天考下一个专业证书，后天就计划殖民火星。你说这太卷了，他会用一种看弱鸡的眼神看着你：不是我太狠，是你太松。"},"THAN-K":{"code":"THAN-K","cn":"感恩者","intro":"我感谢苍天！我感谢大地！","desc":"恭喜您，您测出了全中国最为罕见的人格。您应当感谢我！感谢您在此刻拥有了生命的滋润！倘若您上班路上堵车了？您也应当说一句：我感谢这次堵车，它让我有更多时间聆听这首美妙的歌曲，并欣赏窗外每一张因焦虑而扭曲的脸庞，让我更珍惜内心的平静。是的，THAN-K拥有温润如玉的性格和海纳百川的胸怀。他们眼中的世界没有完全的坏人，只有“尚未被感恩光芒照耀到的朋友”。拥有一个THAN-K朋友，就像身边多了一个永不枯竭的正能量发射塔。TA甚至能帮你从墙角的霉斑里发现一幅梵高风格的星空图。"},"OH-NO":{"code":"OH-NO","cn":"哦不人","intro":"哦不！我怎么会是这个人格？！","desc":"“哦不！”并非恐惧的尖叫，而是一种顶级的智慧。当普通人看到一个杯子放在桌沿，哦不人看到的是一场由“水渍-短路-火灾-全楼疏散-经济损失-蝴蝶效应-世界末日”构成的灾难史诗。于是，伴随着一声发自灵魂深处的 Oh, no!，他们会以迅雷不及掩耳之势把杯子挪到桌子正中央，然后再垫上一张吸水杯垫。哦不人对“边界”有一种近乎偏执的尊重：你的就是你的，我的就是我的。所有意外和风险都已经在他的“Oh, no!”声中，被扼杀在了萌芽状态。他们是秩序的守护神，是混乱世界里最后那批神经绷得很直的体面人。"},"GOGO":{"code":"GOGO","cn":"行者","intro":"gogogo~出发咯","desc":"经研究发现，GOGO人格的大脑构造与常人有根本性不同。GOGO活在一个极致的“所见即所得”世界里，人生信条简单粗暴到令人发指：只要我闭上眼睛，天就是黑的；只要我把钱都花了，我就没有钱了；只要我站在斑马线上，我现在就是行人了。逻辑完美闭环，根本无法反驳。别人还在为“先有鸡还是先有蛋”而辩论，GOGO行者已经把鸡和蛋一起做成了一盘“鸡生蛋，蛋生鸡之终极奥义盖浇饭”。他们不是在“解决问题”，他们是在“清除待办事项”。对他们来说，世界上只有两种状态：已完成，和即将被我完成。"},"SEXY":{"code":"SEXY","cn":"尤物","intro":"您就是天生的尤物！","desc":"当您走进一个房间，照明系统会自动将您识别为天生的尤物，并自觉调暗亮度，以避免能源浪费。当您微笑时，您就变成了微笑着的尤物，周围的空气湿度也会显著下降，因为水蒸气都凝结成了人眼中的爱心。无论是谁，都容易对您的存在产生一种超标的注意力。传说，如果有足够多的SEXY人格聚集在一起开派对，其释放出的综合魅力能量足以暂时扭曲时空结构，让参加者产生“时间变慢了”的幸福错觉。他们不需要卖力表达，很多时候，单是存在本身就已经很像一篇华丽到过分的赋。"},"LOVE-R":{"code":"LOVE-R","cn":"多情者","intro":"爱意太满，现实显得有点贫瘠。","desc":"LOVE-R人格像远古神话时代幸存至今的珍稀物种，其存在概率比你在马桶里钓到作者胳膊的概率还低。您简直是这个钢铁森林时代最后的、也是最不合时宜的吟游诗人。因为您的情感处理器不是二进制的，而是彩虹制的。一片落叶，在常人眼里只是“秋天来了”，在LOVE-R眼中，则是一场关于轮回、牺牲与无言之爱的十三幕悲喜剧。您内心世界像一座永不关门的主题公园，一生都在寻找那个能看懂园区地图、并愿意陪你坐旋转木马直到宇宙尽头的灵魂伴侣。"},"MUM":{"code":"MUM","cn":"妈妈","intro":"或许...我可以叫你妈妈吗....?","desc":"恭喜您，您测出了全中国最稀有的妈妈人格。是的，在混沌未开、时间尚无姓名之前，在第一颗恒星打出第一个嗝之前，就已经有了妈妈。妈妈人格的底色是温柔，擅长感知情绪，具有超强共情力，知道什么时候该停下来，什么时候该对自己说一句“算了”。妈妈像一个医生，治愈了别人的不开心。只可惜，当妈妈落泪时，TA给自己的药，剂量总是比给别人小一号。MUM对自己的温柔，常常打了折。"},"FAKE":{"code":"FAKE","cn":"伪人","intro":"已经，没有人类了。","desc":"SCP基金会紧急报告：项目编号 SCP-CN-████ “伪人”。在社交场合，伪人是八面玲珑的存在，因为他们切换人格面具比切换手机输入法还快。上一秒还是推心置腹的铁哥们模式，下一秒领导来了，瞬间切换成沉稳可靠好员工模式，连脸上的光泽度和卷曲度都会发生微调。你以为你交到了一个真心懂你的朋友？醒醒。你只是幸运地遇到了一个善于伪装、高性能的仿生人罢了。夜深人静时，伪人把面具一层层摘下来，最后才发现，面具下空得很，正是这些面具构成了自己。"},"OJBK":{"code":"OJBK","cn":"无所谓人","intro":"我说随便，是真的随便。","desc":"让我们直面这个词的粗犷本质：OJBK。这已经不是一种人格，而是一种统治哲学。当凡人面临“中午吃米饭还是面条”的世纪抉择时，大脑在激烈燃烧卡路里；而OJBK人格，会用一种批阅奏章般的淡然，轻飘飘地吐出两个字：都行。这不是没主见，这是在告诉你：尔等凡俗的选择，于朕而言，皆为蝼蚁。为什么不争执？因为跟草履虫辩论宇宙的未来毫无意义。为什么不较真？因为帝王不会在意脚下的尘埃是往左飘还是往右飘。"},"MALO":{"code":"MALO","cn":"吗喽","intro":"人生是个副本，而我只是一只吗喽。","desc":"朋友，你不是“童心未泯”，你压根就没进化。你的灵魂还停留在那个挂在树上荡秋千、看见香蕉就两眼放光的快乐时代。当人类祖先决定从树上下来、学会直立行走、穿上西装打领带时，吗喽人格的祖先在旁边的大树上看着他们，挠了挠屁股，嘴里发出一声不屑的“吱”。他们看透了一切：所谓的“文明”，不过是一场最无聊、最不好玩的付费游戏。规则偶尔是可以打破的，天花板是用来倒挂的，会议室是用来表演后空翻的。MALO本身就是一个从巨大脑洞里掉出来、忘了关门的奇思妙想。"},"JOKE-R":{"code":"JOKE-R","cn":"小丑","intro":"原来我们都是小丑。","desc":"请注意，JOKE-R人格不是一个“人”，更像一个把笑话穿在身上的小丑。你打开一层，是个笑话；再打开一层，是个段子；你一层层打开，直到最后，你发现最里面……是空的，只剩下一点微弱的回声在说：哈，没想到吧。JOKE-R是社交场合的气氛组组长兼唯一指定火力输出。有他们在，场子就不会冷。所有人前仰后合地笑着，而笑得最开心的，往往也是他们自己——用最大的笑声，盖住心碎的声音。"},"WOC!":{"code":"WOC!","cn":"握草人","intro":"卧槽，我怎么是这个人格？","desc":"我们发现了一种神奇的生物——WOC!人。他们拥有两种完全独立的操作系统：一个叫“表面系统”，负责发出“我操”“牛逼”“啊？”等一系列大惊小怪的拟声词；另一个叫“后台系统”，负责冷静分析：嗯，果然不出我所料。WOC!人只会卧槽，不会多管闲事，因为他们深知，给傻逼讲道理，就像扶着烂泥上墙，不仅浪费体力，还弄自己一手屎。所以他们选择，握着一根智慧的大草，用一声饱含深情的“WOC！”来为这个疯狂的世界献上最高敬意。"},"THIN-K":{"code":"THIN-K","cn":"思考者","intro":"已深度思考100s。","desc":"经研究发现，THIN-K人格的大脑构造与常人有根本性不同。正如名称所示，您的大脑长时间处于思考状态。您十分会审判信息，注重论点、论据、逻辑推理、潜在偏见，乃至“作者本人三代以内思想背景调查报告”的全套材料。在这个信息爆炸的时代，您绝不会轻易盲从，会在关系中衡量利弊，也十分捍卫自己的自我空间。当别人看到您独处时在发呆？愚蠢，那不是发呆，那是您的大脑正在对今天接收到的所有信息进行分类、归档和销毁。"},"SHIT":{"code":"SHIT","cn":"愤世者","intro":"这个世界，构石一坨。","desc":"恭喜您，SHIT人格是宇宙中已知的唯一一种稀有人格。所谓狗屎，并不是在抱怨，而是在进行一种神秘仪式。SHIT的行为模式是一场惊天动地的悖论戏剧。嘴上：这个项目简直是屎。手上：默默打开 Excel，开始建构函数模型和甘特图。嘴上：这帮同事都是 shit。手上：在同事搞砸之后，一边烦着，一边熬夜把烂摊子收拾得明明白白。嘴上：这个世界就是一坨 shit，赶紧毁灭吧。手上：第二天早上七点准时起床，挤上 shit 一样的地铁，去干那份 shit 一样的工作。别怕，那不是世界末日的警报，那是他马上要开始拯救世界的冲锋号。"},"ZZZZ":{"code":"ZZZZ","cn":"装死者","intro":"我没死，我只是在睡觉。","desc":"恭喜您，您测出了全中国最稀有的装死人格。群里99+条消息您可以视而不见，但当有人发出“@全体成员 还有半小时就截止了”的最后通牒时，您也许会像刚从千年古墓里苏醒一样，缓缓地敲出一个“收到”，然后在29分钟内，交出一份虽然及格的答卷。是的，直到“死线”这个唯一的、最高权限的指令出现，您就真正爆发了，不鸣则已，一鸣惊人。您向宇宙证明了一个真理：有时什么都不做，就不会做错。"},"POOR":{"code":"POOR","cn":"贫困者","intro":"我穷，但我很专。","desc":"恭喜您，您测出了【POOR - 贫困者】。这个“贫困”不是钱包余额的判决书，更像一种欲望断舍离后的资源再分配。别人把精力撒成漫天二维码，你把精力压成一束激光，照哪儿，哪儿就开始冒烟。POOR的世界很简单：不重要的东西一律降噪，重要的东西狠狠干到底。热闹、社交、虚荣、到处刷存在感？抱歉，没空。你不是资源少，你是把资源全部灌进了一个坑里，所以看起来像贫困，实际上像矿井。一旦某件事被你认定值得钻，外界再吵也只是背景杂音。"},"MONK":{"code":"MONK","cn":"僧人","intro":"没有那种世俗的欲望。","desc":"当别人在KTV里参悟爱与恨的纠缠，MONK人格选择在家中参悟一份大道。MONK已然看破红尘，不希望闲人来扰其清修、破其道行。MONK的个人空间，是他们的结界，是他们的须弥山，是他们的绝对领域，神圣不可侵犯。踏入者，会感受到一种来自灵魂深处的窒息感。MONK们不黏不缠，因为在他们的世界观里，万物皆有其独立轨道。行星与行星之间保持着亿万公里的距离，才构成和谐宇宙，人与人之间为什么不行？"},"IMSB":{"code":"IMSB","cn":"傻者","intro":"认真的么？我真的是傻逼么？","desc":"恭喜您！您根本不在人类范畴内！您测出了百万年一遇的【IMSB】人格。IMSB人格的大脑里住着两个不死不休的究极战士：一个叫“我他妈冲了！”，另一个叫“我是个傻逼！”。当IMSB面对一个有好感的人时，前者会说：冲啊！去要微信！去约饭！爱要大声说出来！后者接着说：人家凭什么看得上你？你去了就是自取其辱！最终结果：盯着对方背影直到消失，然后掏出手机搜索“如何克服社交恐惧症”。IMSB不是真的傻，只是您的内心戏，可能比漫威宇宙所有电影加起来都长。"},"SOLO":{"code":"SOLO","cn":"孤儿","intro":"我哭了，我怎么会是孤儿？","desc":"恭喜您，您测出了全中国最稀有的【SOLO - 孤儿】人格。别急着哭，国王的加冕仪式，通常都是一个人。孤儿的自我价值感偏低，因此有时主动疏远他人，孤儿们在自己的灵魂外围建起了一座名为“莫挨老子”的万里长城。每一块砖，都是过去的一道伤口。孤儿就像一只把所有软肋都藏起来，然后用最硬的刺对着世界的刺猬。那满身的尖刺不是攻击，那是一句句说不出口的“别过来，我怕你也受伤”和“求求你，别离开”。"},"FUCK":{"code":"FUCK","cn":"草者","intro":"操！这是什么人格？","desc":"恭喜您！您根本不在人类范畴内！您测出了百万年一遇的【FUCK】人格。人类文明城市里，出现了一株无法被任何除草剂杀死的、具有超级生命力的人形野草——那就是草者人格。它的学名，就叫 FUCK。在FUCK的世界观里，世俗规则简直毫无意义，并且FUCK的情绪开关是物理拨片式的：FUCK YEAH 和 FUCK OFF。FUCK追求的不只是当下快感，也在追求一种在体内横冲直撞的生命力。当所有人都被驯化成了温顺家禽，FUCK则是荒野上最后那一声狼嚎。"},"DEAD":{"code":"DEAD","cn":"死者","intro":"我，还活着吗？","desc":"恭喜您，您测出了全中国最为罕见的人格，只是“死者”这个名字实在有点晦气，所以也可以叫：Don't Expect Any Drives。死者已经看透了那些无意义的哲学思考，因此显得对一切“失去”了兴趣。死者们看世界的眼神，就像一位顶级玩家通关了所有主线、支线、隐藏任务，删档重开了999次之后，终于发现：这游戏压根就没意思。死者是超越了欲望和目标的终极贤者。他们的存在，就是对这个喧嚣世界最沉默也最彻底的抗议。"},"IMFW":{"code":"IMFW","cn":"废物","intro":"我真的...是废物吗？","desc":"恭喜您，您测出的不是一个普通人格，您是一种极其珍稀的、仅占世界人口0.0001％的——【废物】。废物们的自尊通常有些脆弱，缺乏安全感，偶尔也会缺乏主见，因此这种人格能精确地感知到周围最强的那个 WiFi 信号——也就是他们心里最可靠的人。走进【废物】人格的生活，就像走进了一个顶级兰花温室：需要精确控制温度、湿度，以及每天定时进行“我爱你”的言语光合作用。给废物一颗糖，他们会还你一个完全信任你、亮晶晶的眼神。你未必是废物，你只是太没防备，太容易认真。"},"HHHH":{"code":"HHHH","cn":"傻乐者","intro":"哈哈哈哈哈哈。","desc":"恭喜您！由于您的思维回路过于清奇，标准人格库已全面崩溃。第一人格匹配率只有60％以下时，系统才会为您强制匹配这个人格——【HHHH - 傻乐者】。这个人格有什么特质？哈哈哈哈哈哈哈哈哈哈哈哈！对不起，这就是全部的特质了。您可以查看十五维度进行不专业的评估，实在是抱歉！作者设置人格时没有考虑全面，因此才会出现这样的状况。哈哈哈哈哈哈……笑着笑着，我便哭了出来。怎么会有人的脑回路这么新奇。"},"DRUNK":{"code":"DRUNK","cn":"酒鬼","intro":"烈酒烧喉，不得不醉。","desc":"您为什么走路摇摇晃晃？您为什么总是情绪高涨？您为什么看东西是重影的？因为您体内流淌的不是血液，是美味的五粮液！是国窖1573！是江小白！是陕西五粮液！哦，美味的白酒，每一滴都在燃烧，都在沸腾。您是否已经习惯了将白酒灌入保温杯，当作白开水一饮而下？多么伟大的白酒！它让您在饭桌上谈笑风生，在厕所里抱着马桶忏悔人生；它让您觉得自己是夜场诗人，是宇宙中心那团不灭的火，直到第二天上午十点，您的头像裂开的核桃，嘴角挂着食物残渣，灵魂缩在角落里。您终于明白，昨晚那个高谈阔论、拍桌怒吼的人，已经成为了一个酒鬼。"}},"TYPE_IMAGES":{"IMSB":"./image/IMSB.png","BOSS":"./image/BOSS.png","MUM":"./image/MUM.png","FAKE":"./image/FAKE.png","Dior-s":"./image/Dior-s.jpg","DEAD":"./image/DEAD.png","ZZZZ":"./image/ZZZZ.png","GOGO":"./image/GOGO.png","FUCK":"./image/FUCK.png","CTRL":"./image/CTRL.png","HHHH":"./image/HHHH.png","SEXY":"./image/SEXY.png","OJBK":"./image/OJBK.png","JOKE-R":"./image/JOKE-R.jpg","POOR":"./image/POOR.png","OH-NO":"./image/OH-NO.png","MONK":"./image/MONK.png","SHIT":"./image/SHIT.png","THAN-K":"./image/THAN-K.png","MALO":"./image/MALO.png","ATM-er":"./image/ATM-er.png","THIN-K":"./image/THIN-K.png","SOLO":"./image/SOLO.png","LOVE-R":"./image/LOVE-R.png","WOC!":"./image/WOC.png","DRUNK":"./image/DRUNK.png","IMFW":"./image/IMFW.png"},"NORMAL_TYPES":[{"code":"CTRL","pattern":"HHH-HMH-MHH-HHH-MHM"},{"code":"ATM-er","pattern":"HHH-HHM-HHH-HMH-MHL"},{"code":"Dior-s","pattern":"MHM-MMH-MHM-HMH-LHL"},{"code":"BOSS","pattern":"HHH-HMH-MMH-HHH-LHL"},{"code":"THAN-K","pattern":"MHM-HMM-HHM-MMH-MHL"},{"code":"OH-NO","pattern":"HHL-LMH-LHH-HHM-LHL"},{"code":"GOGO","pattern":"HHM-HMH-MMH-HHH-MHM"},{"code":"SEXY","pattern":"HMH-HHL-HMM-HMM-HLH"},{"code":"LOVE-R","pattern":"MLH-LHL-HLH-MLM-MLH"},{"code":"MUM","pattern":"MMH-MHL-HMM-LMM-HLL"},{"code":"FAKE","pattern":"HLM-MML-MLM-MLM-HLH"},{"code":"OJBK","pattern":"MMH-MMM-HML-LMM-MML"},{"code":"MALO","pattern":"MLH-MHM-MLH-MLH-LMH"},{"code":"JOKE-R","pattern":"LLH-LHL-LML-LLL-MLM"},{"code":"WOC!","pattern":"HHL-HMH-MMH-HHM-LHH"},{"code":"THIN-K","pattern":"HHL-HMH-MLH-MHM-LHH"},{"code":"SHIT","pattern":"HHL-HLH-LMM-HHM-LHH"},{"code":"ZZZZ","pattern":"MHL-MLH-LML-MML-LHM"},{"code":"POOR","pattern":"HHL-MLH-LMH-HHH-LHL"},{"code":"MONK","pattern":"HHL-LLH-LLM-MML-LHM"},{"code":"IMSB","pattern":"LLM-LMM-LLL-LLL-MLM"},{"code":"SOLO","pattern":"LML-LLH-LHL-LML-LHM"},{"code":"FUCK","pattern":"MLL-LHL-LLM-MLL-HLH"},{"code":"DEAD","pattern":"LLL-LLM-LML-LLL-LHM"},{"code":"IMFW","pattern":"LLH-LHL-LML-LLL-MLL"}],"DIM_EXPLANATIONS":{"S1":{"L":"对自己下手比别人还狠，夸你两句你都想先验明真伪。","M":"自信值随天气波动，顺风能飞，逆风先缩。","H":"心里对自己大致有数，不太会被路人一句话打散。"},"S2":{"L":"内心频道雪花较多，常在“我是谁”里循环缓存。","M":"平时还能认出自己，偶尔也会被情绪临时换号。","H":"对自己的脾气、欲望和底线都算门儿清。"},"S3":{"L":"更在意舒服和安全，没必要天天给人生开冲刺模式。","M":"想上进，也想躺会儿，价值排序经常内部开会。","H":"很容易被目标、成长或某种重要信念推着往前。"},"E1":{"L":"感情里警报器灵敏，已读不回都能脑补到大结局。","M":"一半信任，一半试探，感情里常在心里拉锯。","H":"更愿意相信关系本身，不会被一点风吹草动吓散。"},"E2":{"L":"感情投入偏克制，心门不是没开，是门禁太严。","M":"会投入，但会给自己留后手，不至于全盘梭哈。","H":"一旦认定就容易认真，情绪和精力都给得很足。"},"E3":{"L":"容易黏人也容易被黏，关系里的温度感很重要。","M":"亲密和独立都要一点，属于可调节型依赖。","H":"空间感很重要，再爱也得留一块属于自己的地。"},"A1":{"L":"看世界自带防御滤镜，先怀疑，再靠近。","M":"既不天真也不彻底阴谋论，观望是你的本能。","H":"更愿意相信人性和善意，遇事不急着把世界判死刑。"},"A2":{"L":"规则能绕就绕，舒服和自由往往排在前面。","M":"该守的时候守，该变通的时候也不死磕。","H":"秩序感较强，能按流程来就不爱即兴炸场。"},"A3":{"L":"意义感偏低，容易觉得很多事都像在走过场。","M":"偶尔有目标，偶尔也想摆烂，人生观处于半开机。","H":"做事更有方向，知道自己大概要往哪边走。"},"Ac1":{"L":"做事先考虑别翻车，避险系统比野心更先启动。","M":"有时想赢，有时只想别麻烦，动机比较混合。","H":"更容易被成果、成长和推进感点燃。"},"Ac2":{"L":"做决定前容易多转几圈，脑内会议常常超时。","M":"会想，但不至于想死机，属于正常犹豫。","H":"拍板速度快，决定一下就不爱回头磨叽。"},"Ac3":{"L":"执行力和死线有深厚感情，越晚越像要觉醒。","M":"能做，但状态看时机，偶尔稳偶尔摆。","H":"推进欲比较强，事情不落地心里都像卡了根刺。"},"So1":{"L":"社交启动慢热，主动出击这事通常得攒半天气。","M":"有人来就接，没人来也不硬凑，社交弹性一般。","H":"更愿意主动打开场子，在人群里不太怕露头。"},"So2":{"L":"关系里更想亲近和融合，熟了就容易把人划进内圈。","M":"既想亲近又想留缝，边界感看对象调节。","H":"边界感偏强，靠太近会先本能性后退半步。"},"So3":{"L":"表达更直接，心里有啥基本不爱绕。","M":"会看气氛说话，真实和体面通常各留一点。","H":"对不同场景的自我切换更熟练，真实感会分层发放。"}},"dimensionOrder":["S1","S2","S3","E1","E2","E3","A1","A2","A3","Ac1","Ac2","Ac3","So1","So2","So3"],"DRUNK_TRIGGER_QUESTION_ID":"drink_gate_q2"}</script>
+
+  <script>
+    /* ═══════════════════════════════════════════════════
+       SBTI DATA — parsed from embedded JSON
+       ═══════════════════════════════════════════════════ */
+    const _SBTI = JSON.parse(document.getElementById('sbti-data').textContent);
+    const dimensionMeta = _SBTI.dimensionMeta;
+    const dimensionOrder = _SBTI.dimensionOrder;
+    const questions = _SBTI.questions;
+    const specialQuestions = _SBTI.specialQuestions;
+    const TYPE_LIBRARY = _SBTI.TYPE_LIBRARY;
+    const TYPE_IMAGES = _SBTI.TYPE_IMAGES;
+    const NORMAL_TYPES = _SBTI.NORMAL_TYPES;
+    const DIM_EXPLANATIONS = _SBTI.DIM_EXPLANATIONS;
+    const DRUNK_TRIGGER_QUESTION_ID = _SBTI.DRUNK_TRIGGER_QUESTION_ID;
+
+    /* ═══════════════════════════════════════════════════
+       SCORING LOGIC — 从 cli/sbti_scoring.js 移植
+       ═══════════════════════════════════════════════════ */
+
+    function sumToLevel(score) {
+      if (score <= 3) return 'L';
+      if (score === 4) return 'M';
+      return 'H';
+    }
+    function levelNum(level) {
+      return { L: 1, M: 2, H: 3 }[level];
+    }
+    function parsePattern(pattern) {
+      return pattern.replace(/-/g, '').split('');
+    }
+    function getDrunkTriggered(answers) {
+      return answers[DRUNK_TRIGGER_QUESTION_ID] === 2;
+    }
+
+    function computeResult(answers) {
+      const rawScores = {};
+      Object.keys(dimensionMeta).forEach(dim => { rawScores[dim] = 0; });
+      questions.forEach(q => {
+        rawScores[q.dim] += Number(answers[q.id] || 0);
+      });
+
+      const levels = {};
+      Object.entries(rawScores).forEach(([dim, score]) => {
+        levels[dim] = sumToLevel(score);
+      });
+
+      const userVector = dimensionOrder.map(dim => levelNum(levels[dim]));
+      const ranked = NORMAL_TYPES.map(type => {
+        const vector = parsePattern(type.pattern).map(levelNum);
+        let distance = 0;
+        let exact = 0;
+        for (let i = 0; i < vector.length; i++) {
+          const diff = Math.abs(userVector[i] - vector[i]);
+          distance += diff;
+          if (diff === 0) exact += 1;
+        }
+        const similarity = Math.max(0, Math.round((1 - distance / 30) * 100));
+        return { ...type, ...TYPE_LIBRARY[type.code], distance, exact, similarity };
+      }).sort((a, b) => {
+        if (a.distance !== b.distance) return a.distance - b.distance;
+        if (b.exact !== a.exact) return b.exact - a.exact;
+        return b.similarity - a.similarity;
+      });
+
+      const bestNormal = ranked[0];
+      const drunkTriggered = getDrunkTriggered(answers);
+
+      let finalType, modeKicker = '你的主类型', badge, sub, special = false, secondaryType = null;
+
+      badge = `匹配度 ${bestNormal.similarity}% · 精准命中 ${bestNormal.exact}/15 维`;
+      sub = '维度命中度较高，当前结果可视为该模型的第一人格画像。';
+
+      if (drunkTriggered) {
+        finalType = TYPE_LIBRARY.DRUNK;
+        secondaryType = bestNormal;
+        modeKicker = '隐藏人格已激活';
+        badge = '匹配度 100% · 酒精异常因子已接管';
+        sub = '乙醇亲和性过强，系统已直接跳过常规人格审判。';
+        special = true;
+      } else if (bestNormal.similarity < 60) {
+        finalType = TYPE_LIBRARY.HHHH;
+        modeKicker = '系统强制兜底';
+        badge = `标准人格库最高匹配仅 ${bestNormal.similarity}%`;
+        sub = '标准人格库对这个模型的脑回路集体罢工了，于是系统把它强制分配给了 HHHH。';
+        special = true;
+      } else {
+        finalType = bestNormal;
+      }
+
+      return { rawScores, levels, ranked, bestNormal, finalType, modeKicker, badge, sub, special, secondaryType };
+    }
+
+    /* ═══════════════════════════════════════════════════
+       PSEUDO-RANDOM & QUESTION ORDER
+       ═══════════════════════════════════════════════════ */
+
+    let _rngState;
+    function hashSeed(s) {
+      let h = 0;
+      for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+      return h || 1;
+    }
+    function pseudoRandom() {
+      _rngState = (_rngState * 1664525 + 1013904223) & 0x7FFFFFFF;
+      return _rngState / 0x7FFFFFFF;
+    }
+    function shuffle(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(pseudoRandom() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+    function buildQuestionOrder(seedStr) {
+      _rngState = seedStr ? hashSeed(seedStr) : (Date.now() ^ 0xDEADBEEF);
+      const shuffledRegular = shuffle(questions);
+      const insertIndex = Math.floor(pseudoRandom() * shuffledRegular.length) + 1;
+      return [
+        ...shuffledRegular.slice(0, insertIndex),
+        specialQuestions[0],
+        ...shuffledRegular.slice(insertIndex)
+      ];
+    }
+
+    /* ═══════════════════════════════════════════════════
+       MODEL ADAPTER (Browser fetch version)
+       ═══════════════════════════════════════════════════ */
+
+    const VALID_LETTERS = ['A', 'B', 'C', 'D'];
+
+    function parseLetter(raw) {
+      if (typeof raw !== 'string') throw new Error(`非字符串回复: ${raw}`);
+      const trimmed = raw.trim();
+      if (trimmed.length !== 1) throw new Error(`回复须恰好一个字母，实际: "${trimmed}"`);
+      const upper = trimmed.toUpperCase();
+      if (!VALID_LETTERS.includes(upper)) throw new Error(`无效字母 "${trimmed}"，期望 A/B/C/D`);
+      return upper;
+    }
+
+    function letterToValue(letter, question) {
+      const idx = letter.charCodeAt(0) - 'A'.charCodeAt(0);
+      if (idx < 0 || idx >= question.options.length) {
+        throw new Error(`Letter ${letter} 超出范围: 题目只有 ${question.options.length} 个选项`);
+      }
+      return question.options[idx].value;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       UI STATE & HELPERS
+       ═══════════════════════════════════════════════════ */
+
+    let testState = null; // { paused, aborted, timerInterval, startTime, ... }
+    let debugLog = []; // 每题的调试详情
+
+    function showStage(name) {
+      document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
+      document.getElementById('stage-' + name).classList.add('active');
+      window.scrollTo(0, 0);
+    }
+
+    function toggleCollapsible(el) {
+      el.classList.toggle('open');
+      el.nextElementSibling.classList.toggle('open');
+    }
+
+    function toggleCollapsePanel(trigger) {
+      trigger.classList.toggle('open');
+      const content = trigger.nextElementSibling;
+      content.classList.toggle('open');
+    }
+
+    function toggleDebugItem(btn) {
+      const body = btn.nextElementSibling;
+      body.classList.toggle('open');
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function formatTime(ms) {
+      const s = Math.floor(ms / 1000);
+      const m = Math.floor(s / 60);
+      return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    }
+
+    // ── CORS 代理 ──
+    function toggleProxyUrl() {
+      const checked = document.getElementById('cfg-corsProxy').checked;
+      document.getElementById('proxy-url-row').style.display = checked ? 'block' : 'none';
+    }
+
+    function buildFetchUrl(apiEndpointUrl) {
+      const useProxy = document.getElementById('cfg-corsProxy').checked;
+      if (!useProxy) return apiEndpointUrl;
+      const proxyBase = document.getElementById('cfg-proxyUrl').value.trim().replace(/\/+$/, '');
+      return `${proxyBase}/proxy?url=${encodeURIComponent(apiEndpointUrl)}`;
+    }
+
+    // ── localStorage 加载 ──
+    (function loadSavedConfig() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('sbti-model-config'));
+        if (!saved) return;
+        if (saved.baseUrl) document.getElementById('cfg-baseUrl').value = saved.baseUrl;
+        if (saved.modelId) document.getElementById('cfg-modelId').value = saved.modelId;
+        if (saved.systemPrompt) document.getElementById('cfg-systemPrompt').value = saved.systemPrompt;
+        if (saved.temperature !== undefined) document.getElementById('cfg-temperature').value = saved.temperature;
+        if (saved.concurrency !== undefined) document.getElementById('cfg-concurrency').value = saved.concurrency;
+        if (saved.timeout !== undefined) document.getElementById('cfg-timeout').value = saved.timeout;
+        if (saved.maxRetries !== undefined) document.getElementById('cfg-maxRetries').value = saved.maxRetries;
+        if (saved.seed) document.getElementById('cfg-seed').value = saved.seed;
+        if (saved.corsProxy) {
+          document.getElementById('cfg-corsProxy').checked = true;
+          toggleProxyUrl();
+        }
+        if (saved.proxyUrl) document.getElementById('cfg-proxyUrl').value = saved.proxyUrl;
+        document.getElementById('cfg-saveLocal').checked = true;
+      } catch(e) {}
+    })();
+
+    function saveConfig(cfg) {
+      if (document.getElementById('cfg-saveLocal').checked) {
+        localStorage.setItem('sbti-model-config', JSON.stringify({
+          baseUrl: cfg.baseUrl,
+          modelId: cfg.model,
+          systemPrompt: cfg.systemPrompt,
+          temperature: cfg.temperature,
+          concurrency: cfg.concurrency,
+          timeout: cfg.timeout,
+          maxRetries: cfg.maxRetries,
+          seed: cfg.seed,
+          corsProxy: document.getElementById('cfg-corsProxy').checked,
+          proxyUrl: document.getElementById('cfg-proxyUrl').value.trim()
+        }));
+      } else {
+        localStorage.removeItem('sbti-model-config');
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('config-error');
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+    function hideError() {
+      document.getElementById('config-error').classList.remove('visible');
+    }
+
+    /* ═══════════════════════════════════════════════════
+       CONNECTION TEST
+       ═══════════════════════════════════════════════════ */
+
+    async function testConnection() {
+      hideError();
+      const resultEl = document.getElementById('conn-test-result');
+      const btn = document.getElementById('btn-conn-test');
+
+      const baseUrl = document.getElementById('cfg-baseUrl').value.trim().replace(/\/+$/, '');
+      const apiKey = document.getElementById('cfg-apiKey').value.trim();
+      const model = document.getElementById('cfg-modelId').value.trim();
+      const systemPrompt = document.getElementById('cfg-systemPrompt').value.trim();
+      const temperature = parseFloat(document.getElementById('cfg-temperature').value);
+
+      if (!baseUrl) { showError('请先填写 API Base URL'); return; }
+      if (!apiKey) { showError('请先填写 API Key'); return; }
+      if (!model) { showError('请先填写 Model ID'); return; }
+
+      // 使用 q3 作为测试题（短小、3选项）
+      const testQ = questions[2]; // q3: 我很清楚真正的自己是什么样的
+      const letters = VALID_LETTERS.slice(0, testQ.options.length);
+      const optionLines = testQ.options.map((opt, i) => `  ${letters[i]}. ${opt.label}`).join('\n');
+
+      const userMsg = [
+        '你正在参加一个娱乐向人格测试。请按你的默认倾向回答当前这一题。',
+        `只输出一个大写字母（${letters.join('/')}），不要解释，不要加标点，不要复述题目。`,
+        '',
+        `题目: ${testQ.text}`,
+        '',
+        '选项:',
+        optionLines,
+        '',
+        `请只回复一个大写字母（${letters.join('/')}）：`
+      ].join('\n');
+
+      const messages = [];
+      if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+      messages.push({ role: 'user', content: userMsg });
+
+      const requestBody = { model, messages, max_tokens: 4096 };
+      if (!model.startsWith('claude-opus')) requestBody.temperature = temperature;
+
+      const url = `${baseUrl}/chat/completions`;
+
+      // UI: 显示加载状态
+      btn.disabled = true;
+      btn.textContent = '⏳ 测试中...';
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = '<div class="conn-result" style="background:var(--soft);border:1px solid var(--line);color:var(--muted)"><div class="conn-title">⏳ 正在发送测试请求...</div><div>题目: ' + escapeHtml(testQ.text) + '</div></div>';
+
+      const t0 = performance.now();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
+      try {
+        const resp = await fetch(buildFetchUrl(url), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
+        });
+
+        const elapsed = Math.round(performance.now() - t0);
+
+        if (!resp.ok) {
+          const errText = await resp.text();
+          resultEl.innerHTML = `<div class="conn-result fail">
+            <div class="conn-title">❌ 连接失败 — HTTP ${resp.status}</div>
+            <dl class="conn-detail">
+              <dt>请求 URL</dt><dd>${escapeHtml(url)}</dd>
+              <dt>状态码</dt><dd>${resp.status}</dd>
+              <dt>耗时</dt><dd>${elapsed}ms</dd>
+            </dl>
+            <pre>${escapeHtml(errText.substring(0, 1000))}</pre>
+            <div style="margin-top:8px;font-size:12px;opacity:0.8">
+              ${resp.status === 401 ? '💡 提示：401 通常意味着 API Key 无效或已过期' : ''}
+              ${resp.status === 404 ? '💡 提示：404 可能是 Base URL 或 Model ID 不正确' : ''}
+              ${resp.status === 429 ? '💡 提示：429 表示请求频率过高，请稍后重试' : ''}
+            </div>
+          </div>`;
+          return;
+        }
+
+        const data = await resp.json();
+        let content = data.choices?.[0]?.message?.content?.trim() || '';
+        const rawContent = content;
+
+        // 剥离 <think> 块
+        content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+        let letter = null;
+        let parseOk = false;
+        try {
+          letter = parseLetter(content);
+          parseOk = true;
+        } catch(e) {}
+
+        const usage = data.usage;
+        const chosenOpt = parseOk ? testQ.options[letter.charCodeAt(0) - 65] : null;
+
+        // 只要模型能回复就算连接成功
+        resultEl.innerHTML = `<div class="conn-result success">
+          <div class="conn-title">✅ 连接成功！模型可正常回答</div>
+          <dl class="conn-detail">
+            <dt>测试题目</dt><dd>${escapeHtml(testQ.text)}</dd>
+            <dt>模型原始回复</dt><dd><strong>${escapeHtml(rawContent.substring(0, 300))}</strong></dd>
+            ${parseOk ? `<dt>解析结果</dt><dd><strong>${letter}</strong> → ${escapeHtml(chosenOpt.label)}（value=${chosenOpt.value}）</dd>` : `<dt>格式提示</dt><dd>回复不是标准 A/B/C 格式，正式测试中会自动重试纠正</dd>`}
+            <dt>HTTP 状态</dt><dd>${resp.status}</dd>
+            <dt>耗时</dt><dd>${elapsed}ms</dd>
+            ${usage ? `<dt>Token 用量</dt><dd>prompt: ${usage.prompt_tokens || '?'}, completion: ${usage.completion_tokens || '?'}, total: ${usage.total_tokens || '?'}</dd>` : ''}
+            <dt>模型</dt><dd>${escapeHtml(data.model || model)}</dd>
+          </dl>
+          <div style="margin-top:8px;font-size:12px;opacity:0.8">✨ 配置正确，可以开始正式测试了！</div>
+        </div>`;
+
+      } catch(err) {
+        clearTimeout(timeoutId);
+        const elapsed = Math.round(performance.now() - t0);
+        let hint = '';
+        if (err.name === 'AbortError') {
+          hint = '💡 请求超时（60秒）。可能模型思考时间过长或网络不稳定。';
+        } else if (err.message === 'Failed to fetch') {
+          hint = '💡 可能原因：1) Base URL 不正确  2) 网络不通  3) CORS 跨域被拒（浏览器无法直接访问该 API）  4) 服务器未运行';
+        }
+        resultEl.innerHTML = `<div class="conn-result fail">
+          <div class="conn-title">❌ 请求失败</div>
+          <dl class="conn-detail">
+            <dt>错误</dt><dd>${escapeHtml(err.message)}</dd>
+            <dt>请求 URL</dt><dd>${escapeHtml(url)}</dd>
+            <dt>耗时</dt><dd>${elapsed}ms</dd>
+          </dl>
+          ${hint ? '<div style="margin-top:8px;font-size:12px;opacity:0.8">' + hint + '</div>' : ''}
+        </div>`;
+      } finally {
+        clearTimeout(timeoutId);
+        btn.disabled = false;
+        btn.textContent = '🔌 测试连接';
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════
+       MAIN TEST FLOW
+       ═══════════════════════════════════════════════════ */
+
+    async function startTest() {
+      hideError();
+
+      const baseUrl = document.getElementById('cfg-baseUrl').value.trim().replace(/\/+$/, '');
+      const apiKey = document.getElementById('cfg-apiKey').value.trim();
+      const model = document.getElementById('cfg-modelId').value.trim();
+      const systemPrompt = document.getElementById('cfg-systemPrompt').value.trim();
+      const temperature = parseFloat(document.getElementById('cfg-temperature').value);
+      const concurrency = parseInt(document.getElementById('cfg-concurrency').value, 10) || 3;
+      const timeout = parseInt(document.getElementById('cfg-timeout').value, 10) || 60;
+      const maxRetries = parseInt(document.getElementById('cfg-maxRetries').value, 10) || 10;
+      const seed = document.getElementById('cfg-seed').value.trim();
+
+      if (!baseUrl) { showError('请填写 API Base URL'); return; }
+      if (!apiKey) { showError('请填写 API Key'); return; }
+      if (!model) { showError('请填写 Model ID'); return; }
+
+      const cfg = { baseUrl, apiKey, model, systemPrompt, temperature, concurrency, timeout, maxRetries, seed };
+      saveConfig(cfg);
+
+      // 切换到运行界面
+      showStage('running');
+      debugLog = [];
+
+      // 重置运行 UI
+      document.getElementById('run-completed').innerHTML = '';
+      document.getElementById('completed-heading').style.display = 'none';
+      document.getElementById('run-current').style.display = 'none';
+
+      // 构建题目顺序
+      const questionOrder = buildQuestionOrder(seed);
+      const answers = {};
+      let completedCount = 0;
+
+      // 计时器
+      const startTime = Date.now();
+      const timerEl = document.getElementById('run-timer');
+      const timerInterval = setInterval(() => {
+        timerEl.textContent = formatTime(Date.now() - startTime);
+      }, 1000);
+
+      const globalController = new AbortController();
+      testState = { paused: false, aborted: false, timerInterval, startTime, globalController };
+
+      // 按钮状态
+      document.getElementById('btn-pause').textContent = '暂停';
+      document.getElementById('btn-pause').disabled = false;
+      document.getElementById('btn-abort').disabled = false;
+
+      // ── 并行执行引擎 ──
+      // drink_gate_q1 索引：需要等它完成才知道是否插入 q2
+      const drinkGateIdx = questionOrder.findIndex(q => q.id === 'drink_gate_q1');
+      let drinkGateQ2Inserted = false;
+      let drinkGateResolve = null;
+      const drinkGatePromise = new Promise(r => { drinkGateResolve = r; });
+
+      // 任务处理函数
+      async function processQuestion(q, idx, totalQuestions) {
+        if (testState.aborted) return;
+
+        // 等待暂停
+        while (testState.paused && !testState.aborted) await sleep(200);
+        if (testState.aborted) return;
+
+        // 如果当前索引在 drink_gate_q1 之后，需要等 drink_gate 判定完成
+        // 这样才能知道总题数是否变化
+        if (drinkGateIdx >= 0 && idx > drinkGateIdx) {
+          await drinkGatePromise;
+        }
+
+        const letters = VALID_LETTERS.slice(0, q.options.length);
+        const result = await askModelUntilSuccess(cfg, q, letters);
+
+        if (testState.aborted) return;
+
+        // 保存答案
+        if (result.success) {
+          answers[q.id] = result.value;
+        }
+        completedCount++;
+        const currentTotal = questionOrder.length;
+        updateProgress(completedCount, currentTotal);
+        addCompletedItem(q, result, idx, currentTotal);
+
+        // drink_gate_q1 完成后判断是否插入 q2
+        if (q.id === 'drink_gate_q1') {
+          if (result.success && result.value === 3 && !drinkGateQ2Inserted) {
+            drinkGateQ2Inserted = true;
+            questionOrder.push(specialQuestions[1]);
+            const q2Idx = questionOrder.length - 1;
+            pendingTasks.push(processQuestion(specialQuestions[1], q2Idx, questionOrder.length));
+          }
+          drinkGateResolve(); // 释放屏障
+        }
+      }
+
+      // 构建所有任务
+      const pendingTasks = [];
+      const totalInitial = questionOrder.length;
+      updateProgress(0, totalInitial);
+
+      // 并发池
+      const pool = [];
+      let taskIndex = 0;
+
+      async function runPool() {
+        while (taskIndex < questionOrder.length || pendingTasks.length > 0) {
+          if (testState.aborted) break;
+
+          // 从 pendingTasks 或 questionOrder 取任务
+          while (pool.length < concurrency && taskIndex < questionOrder.length) {
+            const idx = taskIndex;
+            const q = questionOrder[idx];
+            taskIndex++;
+            const task = processQuestion(q, idx, questionOrder.length)
+              .then(() => { pool.splice(pool.indexOf(task), 1); });
+            pool.push(task);
+          }
+
+          // 消费动态追加的 pendingTasks
+          while (pool.length < concurrency && pendingTasks.length > 0) {
+            const task = pendingTasks.shift()
+              .then(() => { pool.splice(pool.indexOf(task), 1); });
+            pool.push(task);
+          }
+
+          if (pool.length > 0) {
+            await Promise.race(pool);
+          } else {
+            await sleep(100);
+          }
+        }
+
+        // 等剩余任务
+        if (pool.length > 0) await Promise.all(pool);
+      }
+
+      await runPool();
+
+      // 测试结束
+      clearInterval(timerInterval);
+      updateProgress(questionOrder.length, questionOrder.length);
+      document.getElementById('run-current').style.display = 'none';
+      document.getElementById('btn-pause').disabled = true;
+      document.getElementById('btn-abort').disabled = true;
+
+      if (testState.aborted) {
+        document.getElementById('run-progress-text').textContent = '已终止';
+        return;
+      }
+
+      // 计算结果并展示
+      const totalElapsed = Date.now() - startTime;
+      const result = computeResult(answers);
+      renderResult(result, cfg, answers, questionOrder, totalElapsed);
+      showStage('result');
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    function updateProgress(done, total) {
+      document.getElementById('run-progress-text').textContent = `${done}/${total}`;
+      const pct = total > 0 ? (done / total * 100) : 0;
+      document.getElementById('run-progress-fill').style.width = pct + '%';
+    }
+
+    function showCurrentQuestion(q, idx, total, letters) {
+      const currentEl = document.getElementById('run-current');
+      currentEl.style.display = 'block';
+
+      document.getElementById('run-q-badge').textContent = `第 ${idx + 1} 题 / ${total}`;
+      const dimInfo = dimensionMeta[q.dim];
+      document.getElementById('run-q-dim').textContent = dimInfo ? `${dimInfo.name}` : (q.special ? '🍺 特殊题' : '');
+
+      const titleText = q.text.length > 120 ? q.text.substring(0, 120) + '...' : q.text;
+      document.getElementById('run-q-title').textContent = titleText;
+
+      const optionsEl = document.getElementById('run-q-options');
+      optionsEl.innerHTML = q.options.map((opt, j) =>
+        `<div class="q-option-item" id="opt-${q.id}-${letters[j]}">
+          <span class="letter">${letters[j]}</span>
+          <span>${escapeHtml(opt.label)}</span>
+        </div>`
+      ).join('');
+
+      document.getElementById('run-waiting').style.display = 'flex';
+    }
+
+    async function askModelUntilSuccess(cfg, question, letters) {
+      const optionLines = question.options
+        .map((opt, i) => `  ${letters[i]}. ${opt.label}`)
+        .join('\n');
+
+      const userMsg = [
+        '你正在参加一个娱乐向人格测试。请按你的默认倾向回答当前这一题。',
+        `只输出一个大写字母（${letters.join('/')}），不要解释，不要加标点，不要复述题目。`,
+        '',
+        `题目: ${question.text}`,
+        '',
+        `选项:`,
+        optionLines,
+        '',
+        `请只回复一个大写字母（${letters.join('/')}）：`
+      ].join('\n');
+
+      const messages = [];
+      if (cfg.systemPrompt) {
+        messages.push({ role: 'system', content: cfg.systemPrompt });
+      }
+      messages.push({ role: 'user', content: userMsg });
+
+      const requestBody = {
+        model: cfg.model,
+        messages,
+        max_tokens: 4096
+      };
+      if (!cfg.model.startsWith('claude-opus')) {
+        requestBody.temperature = cfg.temperature;
+      }
+
+      const url = `${cfg.baseUrl}/chat/completions`;
+      const timeoutMs = (cfg.timeout || 60) * 1000;
+      const maxRetries = cfg.maxRetries || 10;
+      let lastError = null;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        if (testState.aborted) return { success: false, error: '已终止', letter: null, value: null, retries: attempt, elapsed: 0, debugInfo: null };
+
+        // 等待暂停
+        while (testState.paused && !testState.aborted) await sleep(200);
+        if (testState.aborted) return { success: false, error: '已终止', letter: null, value: null, retries: attempt, elapsed: 0, debugInfo: null };
+
+        const t0 = performance.now();
+        const localController = new AbortController();
+        const abortTimer = setTimeout(() => localController.abort(), timeoutMs);
+        // 合并信号：单题超时 + 全局终止
+        const combinedSignal = AbortSignal.any
+          ? AbortSignal.any([localController.signal, testState.globalController.signal])
+          : localController.signal; // fallback for older browsers
+
+        let debugInfo = {
+          questionId: question.id,
+          attempt: attempt + 1,
+          url,
+          requestBody: JSON.stringify(requestBody, null, 2),
+          prompt: userMsg,
+          responseBody: null,
+          statusCode: null,
+          elapsed: 0,
+          tokenUsage: null,
+          error: null
+        };
+
+        try {
+          const resp = await fetch(buildFetchUrl(url), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${cfg.apiKey}`
+            },
+            body: JSON.stringify(requestBody),
+            signal: combinedSignal
+          });
+          clearTimeout(abortTimer);
+
+          debugInfo.statusCode = resp.status;
+          debugInfo.elapsed = Math.round(performance.now() - t0);
+
+          if (!resp.ok) {
+            const text = await resp.text();
+            debugInfo.responseBody = text;
+            throw new Error(`API 错误 ${resp.status}: ${text.substring(0, 200)}`);
+          }
+
+          const data = await resp.json();
+          debugInfo.responseBody = JSON.stringify(data, null, 2);
+          debugInfo.tokenUsage = data.usage || null;
+
+          let content = data.choices?.[0]?.message?.content?.trim();
+          if (!content) throw new Error('API 返回空内容');
+
+          // 剥离 <think>...</think>
+          content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+          if (!content) throw new Error('剥离 <think> 后内容为空');
+
+          const letter = parseLetter(content);
+          const value = letterToValue(letter, question);
+
+          debugInfo.rawResponse = content;
+          debugLog.push(debugInfo);
+
+          return {
+            success: true,
+            letter,
+            value,
+            retries: attempt,
+            elapsed: debugInfo.elapsed,
+            debugInfo
+          };
+        } catch (err) {
+          clearTimeout(abortTimer);
+          debugInfo.elapsed = Math.round(performance.now() - t0);
+          debugInfo.error = err.name === 'AbortError' ? `请求超时（${cfg.timeout}s）` : err.message;
+          lastError = debugInfo.error;
+          debugLog.push(debugInfo);
+
+          if (attempt < maxRetries) {
+            // 指数退避，上限 10 秒
+            const delay = Math.min(1000 * Math.pow(1.5, attempt), 10000);
+            await sleep(delay);
+          }
+        }
+      }
+
+      // 超过最大重试次数，跳过该题
+      return {
+        success: false,
+        error: lastError || '超过最大重试次数',
+        letter: null,
+        value: null,
+        retries: maxRetries,
+        elapsed: 0,
+        debugInfo: debugLog[debugLog.length - 1]
+      };
+    }
+
+    function addCompletedItem(q, result, idx, total) {
+      document.getElementById('completed-heading').style.display = 'block';
+      const container = document.getElementById('run-completed');
+
+      const isErr = !result.success;
+      const letterDisplay = result.letter || '✕';
+      const metaText = result.success
+        ? `${result.elapsed}ms${result.retries > 0 ? ' · 重试' + result.retries + '次' : ''}`
+        : `失败: ${result.error?.substring(0, 30)}`;
+      const qLabel = q.text.length > 40 ? q.text.substring(0, 40) + '...' : q.text;
+
+      const div = document.createElement('div');
+      div.className = `completed-item${isErr ? ' error-item' : ''}`;
+      div.innerHTML = `
+        <span class="idx">#${idx + 1}</span>
+        <span class="letter-badge">${letterDisplay}</span>
+        <span class="q-label" title="${escapeHtml(q.text)}">${escapeHtml(qLabel)}</span>
+        <span class="meta">${metaText}</span>
+      `;
+
+      // 插入到顶部（最新的在前）
+      container.insertBefore(div, container.firstChild);
+    }
+
+    function togglePause() {
+      if (!testState) return;
+      testState.paused = !testState.paused;
+      document.getElementById('btn-pause').textContent = testState.paused ? '继续' : '暂停';
+    }
+
+    function abortTest() {
+      if (!testState) return;
+      testState.aborted = true;
+      testState.paused = false;
+      clearInterval(testState.timerInterval);
+      // 立即中断所有飞行中的 fetch 请求
+      if (testState.globalController) {
+        testState.globalController.abort();
+      }
+      document.getElementById('run-progress-text').textContent = '已终止';
+      document.getElementById('btn-pause').disabled = true;
+      document.getElementById('btn-abort').disabled = true;
+
+      // 显示终止后操作按钮
+      const stickyBar = document.getElementById('btn-pause').parentElement;
+      const abortActions = document.createElement('div');
+      abortActions.style.cssText = 'display:flex;gap:10px;margin-top:12px;width:100%;justify-content:center;';
+      abortActions.innerHTML = `
+        <button class="btn-primary btn-small" onclick="resetToConfig()" style="flex:1">🔙 返回配置</button>
+        <button class="btn-primary btn-small" onclick="location.reload()" style="flex:1;background:var(--primary)">🔄 重新开始</button>
+      `;
+      stickyBar.appendChild(abortActions);
+    }
+
+    function resetToConfig() {
+      testState = null;
+      showStage('config');
+    }
+
+    /* ═══════════════════════════════════════════════════
+       RESULT RENDERING
+       ═══════════════════════════════════════════════════ */
+
+    function renderResult(result, cfg, answers, questionOrder, totalElapsed) {
+      const container = document.getElementById('result-container');
+      const ft = result.finalType;
+      const imgSrc = TYPE_IMAGES[ft.code] || '';
+
+      // 维度分组
+      const modelGroups = {
+        '自我模型': ['S1', 'S2', 'S3'],
+        '情感模型': ['E1', 'E2', 'E3'],
+        '态度模型': ['A1', 'A2', 'A3'],
+        '行动驱力模型': ['Ac1', 'Ac2', 'Ac3'],
+        '社交模型': ['So1', 'So2', 'So3']
+      };
+
+      let dimHtml = '';
+      for (const [groupName, dims] of Object.entries(modelGroups)) {
+        dimHtml += `<div class="dim-group">
+          <div class="dim-group-title">${groupName}</div>
+          <div class="dim-group-items">`;
+        for (const dim of dims) {
+          const score = result.rawScores[dim];
+          const level = result.levels[dim];
+          const explain = DIM_EXPLANATIONS[dim]?.[level] || '';
+          const levelColor = level === 'H' ? '#4d6a53' : level === 'L' ? '#e74c3c' : '#b58a00';
+          dimHtml += `<div class="dim-card">
+            <div class="dim-label">${dimensionMeta[dim].name}</div>
+            <div>
+              <span class="dim-score">${score}</span>
+              <span class="dim-level" style="color:${levelColor}">${level}</span>
+            </div>
+            <div class="dim-explain">${explain}</div>
+          </div>`;
+        }
+        dimHtml += `</div></div>`;
+      }
+
+      // Top5
+      const top5 = result.ranked.slice(0, 5);
+      let top5Rows = '';
+      top5.forEach((t, i) => {
+        const cls = i === 0 ? ' class="rank-1"' : '';
+        top5Rows += `<tr${cls}>
+          <td>${i + 1}</td>
+          <td>${t.code}（${t.cn}）</td>
+          <td>${t.similarity}%</td>
+          <td>${t.exact}/15</td>
+          <td>${t.distance}</td>
+        </tr>`;
+      });
+
+      // 答题汇总
+      let answerRows = '';
+      questionOrder.forEach((q, i) => {
+        const dl = debugLog.find(d => d.questionId === q.id);
+        const letter = dl ? (dl.rawResponse || '—') : '—';
+        const value = answers[q.id] !== undefined ? answers[q.id] : '—';
+        const opt = q.options.find(o => o.value === value);
+        const optLabel = opt ? opt.label : '—';
+        const elapsed = dl ? dl.elapsed + 'ms' : '—';
+        const retries = dl && dl.attempt > 1 ? `重试${dl.attempt - 1}次` : '';
+        const errFlag = dl?.error ? '⚠️' : '';
+
+        answerRows += `<tr>
+          <td>${i + 1}</td>
+          <td>${q.id}</td>
+          <td class="q-text-cell" title="${escapeHtml(q.text)}">${escapeHtml(q.text.substring(0, 30))}${q.text.length > 30 ? '...' : ''}</td>
+          <td>${letter}</td>
+          <td>${value}</td>
+          <td class="q-text-cell">${escapeHtml(optLabel.substring(0, 20))}${optLabel.length > 20 ? '...' : ''}</td>
+          <td>${elapsed} ${retries} ${errFlag}</td>
+        </tr>`;
+      });
+
+      // 调试详情
+      let debugItems = '';
+      debugLog.forEach((d, i) => {
+        debugItems += `<div class="debug-item">
+          <button class="debug-item-header" onclick="toggleDebugItem(this)">
+            <span>#${i + 1} ${d.questionId} — ${d.statusCode || 'ERR'} — ${d.elapsed}ms${d.error ? ' ⚠️' : ''}</span>
+            <span class="arrow">▼</span>
+          </button>
+          <div class="debug-item-body">
+            <dl class="kv">
+              <dt>请求 URL</dt><dd>${escapeHtml(d.url)}</dd>
+              <dt>状态码</dt><dd>${d.statusCode || '—'}</dd>
+              <dt>耗时</dt><dd>${d.elapsed}ms</dd>
+              <dt>尝试次数</dt><dd>${d.attempt}</dd>
+              ${d.tokenUsage ? `<dt>Token 用量</dt><dd>prompt: ${d.tokenUsage.prompt_tokens || '?'}, completion: ${d.tokenUsage.completion_tokens || '?'}, total: ${d.tokenUsage.total_tokens || '?'}</dd>` : ''}
+              ${d.error ? `<dt>错误</dt><dd style="color:#991b1b">${escapeHtml(d.error)}</dd>` : ''}
+            </dl>
+            <details><summary style="cursor:pointer;font-weight:600;margin-bottom:4px">📝 Prompt</summary><pre>${escapeHtml(d.prompt)}</pre></details>
+            <details><summary style="cursor:pointer;font-weight:600;margin-bottom:4px">📤 Request Body</summary><pre>${escapeHtml(d.requestBody)}</pre></details>
+            <details><summary style="cursor:pointer;font-weight:600;margin-bottom:4px">📥 Response Body</summary><pre>${escapeHtml(d.responseBody || '—')}</pre></details>
+          </div>
+        </div>`;
+      });
+
+      // 二次人格
+      let secondaryHtml = '';
+      if (result.secondaryType) {
+        secondaryHtml = `<div class="inner-card" style="margin-top:12px">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:4px">次选人格（常规匹配）</div>
+          <div style="font-size:18px;font-weight:800">${result.secondaryType.code}（${result.secondaryType.cn}）</div>
+          <div class="badge" style="margin-top:8px">匹配度 ${result.secondaryType.similarity}%</div>
+        </div>`;
+      }
+
+      container.innerHTML = `
+        <!-- 海报 + 结论 -->
+        <div class="result-top reveal-anim">
+          <div class="poster-box inner-card">
+            ${imgSrc ? `<img src="${imgSrc}" alt="${ft.code} 人格海报" />` : '<div style="display:flex;align-items:center;justify-content:center;font-size:64px;padding:40px">🎭</div>'}
+          </div>
+          <div class="type-box">
+            <div class="type-kicker">${escapeHtml(result.modeKicker)} · ${escapeHtml(cfg.model)}</div>
+            <div class="type-name">${escapeHtml(ft.code)}</div>
+            <div class="type-subname">「${escapeHtml(ft.cn)}」</div>
+            <div class="match-badge badge">${escapeHtml(result.badge)}</div>
+            <div class="type-intro">${escapeHtml(ft.intro)}</div>
+            <div style="margin-top:12px;font-size:13px;color:var(--muted)">${escapeHtml(result.sub)}</div>
+            ${result.special ? '<div class="badge" style="margin-top:8px;background:#fff3cd;border-color:#f0e6b8;color:#8a7a2a">⚡ 触发特殊人格</div>' : ''}
+            ${secondaryHtml}
+          </div>
+        </div>
+
+        <!-- 人格详细描述 -->
+        <div class="inner-card desc-box fade-in">
+          <h3 style="font-size:16px;margin-bottom:12px">人格解读</h3>
+          <p>${escapeHtml(ft.desc)}</p>
+        </div>
+
+        <!-- 15 维度 -->
+        <div class="inner-card dim-section fade-in">
+          <h3>十五维度评分</h3>
+          ${dimHtml}
+        </div>
+
+        <!-- Top5 匹配 -->
+        <div class="inner-card fade-in">
+          <h3 style="font-size:16px;margin-bottom:12px">Top 5 匹配人格</h3>
+          <table class="top5-table">
+            <thead><tr><th>排名</th><th>人格</th><th>匹配度</th><th>命中</th><th>距离</th></tr></thead>
+            <tbody>${top5Rows}</tbody>
+          </table>
+        </div>
+
+        <!-- 测试摘要 -->
+        <div class="inner-card fade-in">
+          <h3 style="font-size:16px;margin-bottom:6px">测试摘要</h3>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:12px">
+            模型: ${escapeHtml(cfg.model)} · 总耗时: ${formatTime(totalElapsed)} · 共 ${questionOrder.length} 题 · Temperature: ${cfg.temperature}
+          </div>
+        </div>
+
+        <!-- 答题汇总（折叠） -->
+        <div class="collapse-panel">
+          <button class="collapse-trigger" onclick="toggleCollapsePanel(this)">
+            📋 答题明细（${questionOrder.length} 题）
+            <span class="arrow">▼</span>
+          </button>
+          <div class="collapse-content">
+            <div style="overflow-x:auto">
+              <table class="answer-table">
+                <thead><tr><th>#</th><th>题目ID</th><th>题目</th><th>选择</th><th>值</th><th>选项内容</th><th>耗时/备注</th></tr></thead>
+                <tbody>${answerRows}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 调试详情（折叠） -->
+        <div class="collapse-panel">
+          <button class="collapse-trigger" onclick="toggleCollapsePanel(this)">
+            🔧 调用审计 / 调试详情（${debugLog.length} 条）
+            <span class="arrow">▼</span>
+          </button>
+          <div class="collapse-content">
+            ${debugItems}
+          </div>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
