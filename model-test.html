@@ -1201,11 +1201,15 @@
 
     function parseLetter(raw) {
       if (typeof raw !== 'string') throw new Error(`非字符串回复: ${raw}`);
-      const trimmed = raw.trim();
-      if (trimmed.length !== 1) throw new Error(`回复须恰好一个字母，实际: "${trimmed}"`);
-      const upper = trimmed.toUpperCase();
-      if (!VALID_LETTERS.includes(upper)) throw new Error(`无效字母 "${trimmed}"，期望 A/B/C/D`);
-      return upper;
+      
+      // 容错提取：优先提取出文本中的第一个 A-D 字母（不区分大小写）
+      // 很多模型会回复 "选A" 或 "A. 认同"，直接提取即可
+      const match = raw.match(/[A-D]/i);
+      
+      if (!match) {
+        throw new Error(`无法从回复中找到有效的 A/B/C/D 字母。实际: "${raw.substring(0, 30)}"`);
+      }
+      return match[0].toUpperCase();
     }
 
     function letterToValue(letter, question) {
@@ -1922,11 +1926,17 @@
       // 答题汇总
       let answerRows = '';
       questionOrder.forEach((q, i) => {
-        const dl = debugLog.find(d => d.questionId === q.id);
-        const letter = dl ? (dl.rawResponse || '—') : '—';
+        // 由于存在重试机制，务必取倒序（即最后一次尝试）的日志作为最终展示依据
+        const dlList = debugLog.filter(d => d.questionId === q.id);
+        const dl = dlList[dlList.length - 1]; // 最终的日志
+        
+        // 我们根据实际保存到的 answers value 来反推字母（100%准确），如果没存上则是未作答
         const value = answers[q.id] !== undefined ? answers[q.id] : '—';
         const opt = q.options.find(o => o.value === value);
         const optLabel = opt ? opt.label : '—';
+        const optIndex = q.options.indexOf(opt);
+        const letter = optIndex !== -1 ? String.fromCharCode(65 + optIndex) : '—';
+        
         const elapsed = dl ? dl.elapsed + 'ms' : '—';
         const retries = dl && dl.attempt > 1 ? `重试${dl.attempt - 1}次` : '';
         const errFlag = dl?.error ? '⚠️' : '';
