@@ -1282,7 +1282,10 @@
         if (saved.temperature !== undefined) document.getElementById('cfg-temperature').value = saved.temperature;
         if (saved.concurrency !== undefined) document.getElementById('cfg-concurrency').value = saved.concurrency;
         if (saved.timeout !== undefined) document.getElementById('cfg-timeout').value = saved.timeout;
-        if (saved.maxRetries !== undefined) document.getElementById('cfg-maxRetries').value = saved.maxRetries;
+        // 如果 localStorage 中存的是旧的默认值 10，则忽略它，使用新的默认值 50
+        if (saved.maxRetries !== undefined && saved.maxRetries !== 10) {
+          document.getElementById('cfg-maxRetries').value = saved.maxRetries;
+        }
         if (saved.seed) document.getElementById('cfg-seed').value = saved.seed;
         document.getElementById('cfg-saveLocal').checked = true;
       } catch(e) {}
@@ -1525,7 +1528,7 @@
       const temperature = parseFloat(document.getElementById('cfg-temperature').value);
       const concurrency = parseInt(document.getElementById('cfg-concurrency').value, 10) || 3;
       const timeout = parseInt(document.getElementById('cfg-timeout').value, 10) || 60;
-      const maxRetries = parseInt(document.getElementById('cfg-maxRetries').value, 10) || 10;
+      const maxRetries = parseInt(document.getElementById('cfg-maxRetries').value, 10) || 50;
       const seed = document.getElementById('cfg-seed').value.trim();
 
       if (!baseUrl) { showError('请填写 API Base URL'); return; }
