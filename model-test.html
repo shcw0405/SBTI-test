@@ -1358,95 +1358,121 @@
       resultEl.style.display = 'block';
       resultEl.innerHTML = '<div class="conn-result" style="background:var(--soft);border:1px solid var(--line);color:var(--muted)"><div class="conn-title">⏳ 正在发送测试请求...</div><div>题目: ' + escapeHtml(testQ.text) + '</div></div>';
 
-      const t0 = performance.now();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
-      try {
-        const resp = await fetch(buildFetchUrl(url), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal
-        });
+      const maxRetries = parseInt(document.getElementById('cfg-maxRetries').value, 10) || 10;
+      const timeoutSec = parseInt(document.getElementById('cfg-timeout').value, 10) || 60;
+      
+      let attempt = 0;
+      let parseOk = false;
+      let finalData = null;
+      let finalRespStatus = null;
+      let finalRawContent = '';
+      let finalLetter = null;
+      let elapsedTotal = 0;
+      let lastErrMsg = '';
+      const retryLog = [];
 
-        const elapsed = Math.round(performance.now() - t0);
+      while (attempt < maxRetries && !parseOk) {
+        attempt++;
+        resultEl.innerHTML = `<div class="conn-result" style="background:var(--soft);border:1px solid var(--line);color:var(--muted)">
+          <div class="conn-title">⏳ 正在连通测试... (第 ${attempt}/${maxRetries} 次)</div>
+          <div style="margin-bottom:8px">题目: ${escapeHtml(testQ.text)}</div>
+          ${retryLog.length > 0 ? `<div style="font-size:12px;color:var(--primary)">${retryLog.map(l => escapeHtml(l)).join('<br>')}</div>` : ''}
+        </div>`;
 
-        if (!resp.ok) {
-          const errText = await resp.text();
-          resultEl.innerHTML = `<div class="conn-result fail">
-            <div class="conn-title">❌ 连接失败 — HTTP ${resp.status}</div>
-            <dl class="conn-detail">
-              <dt>请求 URL</dt><dd>${escapeHtml(url)}</dd>
-              <dt>状态码</dt><dd>${resp.status}</dd>
-              <dt>耗时</dt><dd>${elapsed}ms</dd>
-            </dl>
-            <pre>${escapeHtml(errText.substring(0, 1000))}</pre>
-            <div style="margin-top:8px;font-size:12px;opacity:0.8">
-              ${resp.status === 401 ? '💡 提示：401 通常意味着 API Key 无效或已过期' : ''}
-              ${resp.status === 404 ? '💡 提示：404 可能是 Base URL 或 Model ID 不正确' : ''}
-              ${resp.status === 429 ? '💡 提示：429 表示请求频率过高，请稍后重试' : ''}
-            </div>
-          </div>`;
-          return;
+        const t0 = performance.now();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutSec * 1000);
+        let resp;
+
+        try {
+          resp = await fetch(buildFetchUrl(url), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(requestBody),
+            signal: controller.signal
+          });
+          const elapsed = Math.round(performance.now() - t0);
+          elapsedTotal += elapsed;
+          clearTimeout(timeoutId);
+          finalRespStatus = resp.status;
+
+          if (!resp.ok) {
+            const errText = await resp.text();
+            lastErrMsg = `HTTP ${resp.status}: ${errText.substring(0, 100)}`;
+            retryLog.push(`[第${attempt}次] 请求失败: ${lastErrMsg}`);
+            throw new Error(`HTTP ${resp.status}`);
+          }
+
+          const data = await resp.json();
+          finalData = data;
+          let content = data.choices?.[0]?.message?.content?.trim() || '';
+          finalRawContent = content;
+          content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+          try {
+            finalLetter = parseLetter(content);
+            parseOk = true;
+          } catch(e) {
+            lastErrMsg = `未解析出A/B/C (${e.message})`;
+            retryLog.push(`[第${attempt}次] 回复格式不对: ${finalRawContent.substring(0, 50)}...`);
+            throw new Error('ParseError');
+          }
+
+        } catch(err) {
+          clearTimeout(timeoutId);
+          if (err.name === 'AbortError') {
+             const elapsed = Math.round(performance.now() - t0);
+             elapsedTotal += elapsed;
+             lastErrMsg = '请求超时';
+             retryLog.push(`[第${attempt}次] 请求超时 (${timeoutSec}秒)`);
+          } else if (err.message === 'Failed to fetch') {
+             lastErrMsg = '网络连接失败或跨域被拦截';
+             retryLog.push(`[第${attempt}次] 网络不通/跨域`);
+          }
         }
 
-        const data = await resp.json();
-        let content = data.choices?.[0]?.message?.content?.trim() || '';
-        const rawContent = content;
+        if (!parseOk && attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
 
-        // 剥离 <think> 块
-        content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      btn.disabled = false;
+      btn.textContent = '🔌 测试连接';
 
-        let letter = null;
-        let parseOk = false;
-        try {
-          letter = parseLetter(content);
-          parseOk = true;
-        } catch(e) {}
-
-        const usage = data.usage;
-        const chosenOpt = parseOk ? testQ.options[letter.charCodeAt(0) - 65] : null;
-
-        // 只要模型能回复就算连接成功
+      if (parseOk) {
+        const usage = finalData.usage;
+        const chosenOpt = testQ.options[finalLetter.charCodeAt(0) - 65];
         resultEl.innerHTML = `<div class="conn-result success">
-          <div class="conn-title">✅ 连接成功！模型可正常回答</div>
+          <div class="conn-title">✅ 连接成功！(尝试了 ${attempt} 次)</div>
           <dl class="conn-detail">
             <dt>测试题目</dt><dd>${escapeHtml(testQ.text)}</dd>
-            <dt>模型原始回复</dt><dd><strong>${escapeHtml(rawContent.substring(0, 300))}</strong></dd>
-            ${parseOk ? `<dt>解析结果</dt><dd><strong>${letter}</strong> → ${escapeHtml(chosenOpt.label)}（value=${chosenOpt.value}）</dd>` : `<dt>格式提示</dt><dd>回复不是标准 A/B/C 格式，正式测试中会自动重试纠正</dd>`}
-            <dt>HTTP 状态</dt><dd>${resp.status}</dd>
-            <dt>耗时</dt><dd>${elapsed}ms</dd>
+            <dt>模型最终回复</dt><dd><strong>${escapeHtml(finalRawContent.substring(0, 300))}</strong></dd>
+            <dt>解析结果</dt><dd><strong>${finalLetter}</strong> → ${escapeHtml(chosenOpt.label)}</dd>
+            <dt>HTTP 状态</dt><dd>${finalRespStatus}</dd>
+            <dt>累计耗时</dt><dd>${elapsedTotal}ms</dd>
             ${usage ? `<dt>Token 用量</dt><dd>prompt: ${usage.prompt_tokens || '?'}, completion: ${usage.completion_tokens || '?'}, total: ${usage.total_tokens || '?'}</dd>` : ''}
-            <dt>模型</dt><dd>${escapeHtml(data.model || model)}</dd>
+            <dt>模型</dt><dd>${escapeHtml(finalData.model || model)}</dd>
           </dl>
-          <div style="margin-top:8px;font-size:12px;opacity:0.8">✨ 配置正确，可以开始正式测试了！</div>
+          ${retryLog.length > 0 ? `<div style="margin-top:8px;font-size:12px;color:#d97706;background:#fef3c7;padding:6px;border-radius:4px;"><strong>重试历史：</strong><br>${retryLog.map(l => escapeHtml(l)).join('<br>')}</div>` : ''}
+          <div style="margin-top:8px;font-size:12px;opacity:0.8">✨ 通过测试，正式运行也没问题！</div>
         </div>`;
-
-      } catch(err) {
-        clearTimeout(timeoutId);
-        const elapsed = Math.round(performance.now() - t0);
+      } else {
         let hint = '';
-        if (err.name === 'AbortError') {
-          hint = '💡 请求超时（60秒）。可能模型思考时间过长或网络不稳定。';
-        } else if (err.message === 'Failed to fetch') {
-          hint = '💡 可能原因：1) Base URL 不正确  2) 网络不通  3) CORS 跨域被拒（浏览器无法直接访问该 API）  4) 服务器未运行';
-        }
+        if (lastErrMsg.includes('HTTP 401')) hint = '💡 提示：401 通常意味着 API Key 无效或已过期';
+        if (lastErrMsg.includes('HTTP 404')) hint = '💡 提示：404 可能是 Base URL 填错了';
         resultEl.innerHTML = `<div class="conn-result fail">
-          <div class="conn-title">❌ 请求失败</div>
+          <div class="conn-title">❌ 连接或解析失败 (已达最大重试 ${maxRetries} 次)</div>
           <dl class="conn-detail">
-            <dt>错误</dt><dd>${escapeHtml(err.message)}</dd>
+            <dt>最终状态</dt><dd>${escapeHtml(lastErrMsg)}</dd>
             <dt>请求 URL</dt><dd>${escapeHtml(url)}</dd>
-            <dt>耗时</dt><dd>${elapsed}ms</dd>
+            <dt>累计耗时</dt><dd>${elapsedTotal}ms</dd>
           </dl>
-          ${hint ? '<div style="margin-top:8px;font-size:12px;opacity:0.8">' + hint + '</div>' : ''}
+          ${retryLog.length > 0 ? `<div style="margin-top:8px;font-size:12px;color:#dc2626;background:#fee2e2;padding:6px;border-radius:4px;"><strong>重试历史：</strong><br>${retryLog.map(l => escapeHtml(l)).join('<br>')}</div>` : ''}
+          ${hint ? '<div style="margin-top:8px;font-size:12px;font-weight:bold">' + hint + '</div>' : ''}
         </div>`;
-      } finally {
-        clearTimeout(timeoutId);
-        btn.disabled = false;
-        btn.textContent = '🔌 测试连接';
       }
     }
 
