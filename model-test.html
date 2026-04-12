@@ -975,7 +975,7 @@
             </div>
             <div class="form-group">
               <label>最大重试次数</label>
-              <input type="number" id="cfg-maxRetries" value="10" min="1" max="50" step="1" />
+              <input type="number" id="cfg-maxRetries" value="50" min="1" max="100" step="1" />
               <div class="hint">单题超过该次数仍失败则跳过</div>
             </div>
           </div>
@@ -1311,6 +1311,31 @@
       document.getElementById('config-error').classList.remove('visible');
     }
 
+    function showToast(msg) {
+      let toastContainer = document.getElementById('toast-container');
+      if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;';
+        document.body.appendChild(toastContainer);
+      }
+      const toast = document.createElement('div');
+      toast.style.cssText = 'background:var(--card-bg);color:var(--text);padding:12px 16px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);border-left:4px solid var(--primary);font-size:13px;transition:all 0.3s ease;opacity:0;transform:translateY(20px);max-width:350px;word-break:break-word;';
+      toast.innerHTML = escapeHtml(msg);
+      toastContainer.appendChild(toast);
+      
+      // reflow 触发动画
+      toast.offsetHeight; 
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => toast.remove(), 300);
+      }, 6000);
+    }
+
     /* ═══════════════════════════════════════════════════
        CONNECTION TEST
        ═══════════════════════════════════════════════════ */
@@ -1377,6 +1402,9 @@
 
       while (attempt < maxRetries && !parseOk) {
         attempt++;
+        
+        if (attempt === 10) showToast(`⚠️ 正在测试连接，目前已重试 10 次。可能由于网络跨域或 API Token 失效，请耐心等待或终止...`);
+        else if (attempt > 0 && attempt % 10 === 0) showToast(`⚠️ 测试连接已严重受阻（正进行第 ${attempt} 次重试）。请检查 API 配置或网络。`);
         resultEl.innerHTML = `<div class="conn-result" style="background:var(--soft);border:1px solid var(--line);color:var(--muted)">
           <div class="conn-title">⏳ 正在连通测试... (第 ${attempt}/${maxRetries} 次)</div>
           <div style="margin-bottom:8px">题目: ${escapeHtml(testQ.text)}</div>
@@ -1706,10 +1734,14 @@
 
       const url = `${cfg.baseUrl}/chat/completions`;
       const timeoutMs = (cfg.timeout || 60) * 1000;
-      const maxRetries = cfg.maxRetries || 10;
+      const maxRetries = cfg.maxRetries || 50;
       let lastError = null;
 
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        if (attempt > 0 && attempt % 10 === 0) {
+          showToast(`⚠️ 题目 [${question.text.substring(0, 12)}...] 已重试 ${attempt} 次。可能触发了模型安全底线或网络持续抖动。系统将继续为你尝试...`);
+        }
+
         if (testState.aborted) return { success: false, error: '已终止', letter: null, value: null, retries: attempt, elapsed: 0, debugInfo: null };
 
         // 等待暂停
