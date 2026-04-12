@@ -989,16 +989,6 @@
         </div>
 
         <div class="checkbox-row">
-          <input type="checkbox" id="cfg-corsProxy" onchange="toggleProxyUrl()" checked />
-          <label for="cfg-corsProxy">启用线上 CORS 代理（自动解决大多数跨域报错）</label>
-        </div>
-        <div id="proxy-url-row" class="form-group" style="display:block;margin-top:8px">
-          <label>代理地址</label>
-          <input type="text" id="cfg-proxyUrl" value="https://sbti-cors-proxy.1026343326.workers.dev" />
-          <div class="hint">已默认使用你专属的 Cloudflare 云端代理组件。无需配置本地环境。</div>
-        </div>
-
-        <div class="checkbox-row">
           <input type="checkbox" id="cfg-saveLocal" />
           <label for="cfg-saveLocal">保存配置到 localStorage（下次自动填充）</label>
         </div>
@@ -1264,17 +1254,11 @@
       return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
     }
 
-    // ── CORS 代理 ──
-    function toggleProxyUrl() {
-      const checked = document.getElementById('cfg-corsProxy').checked;
-      document.getElementById('proxy-url-row').style.display = checked ? 'block' : 'none';
-    }
-
+    // ── 全局隐形云端 CORS 代理 ──
+    const OMNI_PROXY = "https://sbti-cors-proxy.1026343326.workers.dev";
     function buildFetchUrl(apiEndpointUrl) {
-      const useProxy = document.getElementById('cfg-corsProxy').checked;
-      if (!useProxy) return apiEndpointUrl;
-      const proxyBase = document.getElementById('cfg-proxyUrl').value.trim().replace(/\/+$/, '');
-      return `${proxyBase}/proxy?url=${encodeURIComponent(apiEndpointUrl)}`;
+      // 面向大众的平台默认隐式通过代理请求，避免暴露跨域配置给小白
+      return `${OMNI_PROXY}/proxy?url=${encodeURIComponent(apiEndpointUrl)}`;
     }
 
     // ── localStorage 加载 ──
@@ -1290,11 +1274,6 @@
         if (saved.timeout !== undefined) document.getElementById('cfg-timeout').value = saved.timeout;
         if (saved.maxRetries !== undefined) document.getElementById('cfg-maxRetries').value = saved.maxRetries;
         if (saved.seed) document.getElementById('cfg-seed').value = saved.seed;
-        if (saved.corsProxy) {
-          document.getElementById('cfg-corsProxy').checked = true;
-          toggleProxyUrl();
-        }
-        if (saved.proxyUrl) document.getElementById('cfg-proxyUrl').value = saved.proxyUrl;
         document.getElementById('cfg-saveLocal').checked = true;
       } catch(e) {}
     })();
@@ -1309,9 +1288,7 @@
           concurrency: cfg.concurrency,
           timeout: cfg.timeout,
           maxRetries: cfg.maxRetries,
-          seed: cfg.seed,
-          corsProxy: document.getElementById('cfg-corsProxy').checked,
-          proxyUrl: document.getElementById('cfg-proxyUrl').value.trim()
+          seed: cfg.seed
         }));
       } else {
         localStorage.removeItem('sbti-model-config');
