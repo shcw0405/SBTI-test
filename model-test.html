@@ -989,13 +989,13 @@
         </div>
 
         <div class="checkbox-row">
-          <input type="checkbox" id="cfg-corsProxy" onchange="toggleProxyUrl()" />
-          <label for="cfg-corsProxy">启用 CORS 代理（API 不支持浏览器跨域时必须开启）</label>
+          <input type="checkbox" id="cfg-corsProxy" onchange="toggleProxyUrl()" checked />
+          <label for="cfg-corsProxy">启用线上 CORS 代理（自动解决大多数跨域报错）</label>
         </div>
-        <div id="proxy-url-row" class="form-group" style="display:none;margin-top:8px">
+        <div id="proxy-url-row" class="form-group" style="display:block;margin-top:8px">
           <label>代理地址</label>
-          <input type="text" id="cfg-proxyUrl" value="http://localhost:9876" />
-          <div class="hint">运行 <code>node cors-proxy.js</code> 启动本地代理，或填写其他 CORS 代理地址</div>
+          <input type="text" id="cfg-proxyUrl" value="https://sbti-cors-proxy.1026343326.workers.dev" />
+          <div class="hint">已默认使用你专属的 Cloudflare 云端代理组件。无需配置本地环境。</div>
         </div>
 
         <div class="checkbox-row">
