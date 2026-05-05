@@ -3,6 +3,7 @@
 镜像自 [sbti.unun.dev](https://sbti.unun.dev)，原作者：[B站@蛆肉儿串儿](https://www.bilibili.com/video/BV1LpDHByET6/)
 
 ## 在线体验
+[SBTI-test/model-test](https://caixu.me/SBTI-test/model-test.html)
 
 直接打开 `index.html` 或用任意 HTTP 服务器：
 
